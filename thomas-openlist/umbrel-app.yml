@@ -1,0 +1,45 @@
+manifestVersion: 1.1
+id: thomas-openlist
+# App data (OpenList's database, config and temp folder) can be placed on an
+# external drive when installing. Keep it off the small internal storage.
+storage:
+  dataRoot: data
+folderAccess:
+  - id: nordflix
+    name: Nordflix
+    note: Folder that finished copies are written to, e.g. External/PS4HDD/Nordflix. Available inside OpenList at /nordflix; add a Local storage with that root path.
+    mounts:
+      - service: server
+        targetPath: /nordflix
+        readOnly: false
+category: files
+name: OpenList
+version: "4.2.6"
+tagline: Browse your debrid WebDAV and copy files to your own drive
+icon: https://raw.githubusercontent.com/OpenListTeam/Logo/main/logo.svg
+description: >-
+  OpenList is a file list program that supports many storage providers,
+  including any WebDAV server such as TorBox and Real-Debrid.
+
+
+  Add your debrid services as WebDAV storages and a Local storage at /nordflix,
+  then copy files between them. Copies run as background tasks on the server,
+  with progress under Tasks, and keep running after you close the browser.
+
+
+  Your debrid credentials are entered in OpenList's own storage settings and
+  stay on your device. Log in as admin with the password shown on this page.
+developer: OpenList Team
+website: https://doc.oplist.org
+submitter: Thomas Norden
+submission: https://github.com/TheSupermazter/umbrel-app-store
+repo: https://github.com/OpenListTeam/OpenList
+support: https://github.com/OpenListTeam/OpenList/issues
+gallery: []
+releaseNotes: >-
+  First packaged version: OpenList 4.2.6.
+dependencies: []
+port: 5244
+path: ""
+defaultUsername: "admin"
+deterministicPassword: true

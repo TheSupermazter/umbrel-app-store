@@ -1,0 +1,28 @@
+version: "3.7"
+
+services:
+  app_proxy:
+    environment:
+      # Format: <app-id>_<docker-service-name>_1
+      APP_HOST: thomas-openlist_server_1
+      APP_PORT: 5244
+
+  server:
+    image: openlistteam/openlist:v4.2.6@sha256:c555c6e1c8af2aead38ed12ec761ac077fdf046d19cf033414be8e056aec6b64
+    # Run as the umbrel user so copied files in Nordflix belong to it.
+    user: "1000:1000"
+    init: true
+    restart: on-failure
+    stop_grace_period: 1m
+    environment:
+      TZ: Europe/Amsterdam
+      UMASK: "022"
+      # Umbrel generates this per device and shows it on the app page.
+      APP_PASSWORD: ${APP_PASSWORD}
+    # Set the admin password to the Umbrel app password, then start OpenList
+    # normally. Output is discarded so the password never reaches the logs.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - ./openlist admin set "$$APP_PASSWORD" >/dev/null 2>&1 || echo "Could not set admin password"; exec /entrypoint.sh
+    volumes:
+      - ${APP_DATA_DIR}/data:/opt/openlist/data
