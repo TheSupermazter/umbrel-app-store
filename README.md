@@ -29,3 +29,25 @@ drive in the background.
   Not meant to be exposed publicly.
 - **Updating:** change the image tag and digest in
   `thomas-openlist/docker-compose.yml` and `version` in `umbrel-app.yml`.
+
+### RDT-Client (`thomas-rdt-client`)
+
+[RDT-Client](https://github.com/rogerfar/rdt-client) 2.0.142, which downloads
+finished torrents from a debrid service (Real-Debrid, TorBox and others) to a
+local drive.
+
+- **No credentials in this repository.** The login and the debrid API key are
+  entered in RDT-Client and stay in its database on the device.
+- **Login:** the first username and password entered become the login. It sits
+  behind the Umbrel login as well.
+- **One provider per install.** RDT-Client connects to a single debrid service.
+- **Download folder:** the folder selected for the app (Downloads by default),
+  mounted at `/data/downloads`, RDT-Client's default download path.
+- **Choosing files:** ticking individual files only works with Real-Debrid. For
+  TorBox use the minimum file size and the include/exclude patterns per torrent.
+- **`SKIP_CHOWN`:** set so the image does not change ownership of everything in
+  the download folder at each start.
+- **Sonarr/Radarr:** use host `thomas-rdt-client_server_1`, port `6500`, as a
+  qBittorrent download client.
+- **Updating:** change the image tag and digest in
+  `thomas-rdt-client/docker-compose.yml` and `version` in `umbrel-app.yml`.
