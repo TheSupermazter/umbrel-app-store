@@ -1,0 +1,28 @@
+version: "3.7"
+
+services:
+  app_proxy:
+    environment:
+      # Format: <app-id>_<docker-service-name>_1
+      APP_HOST: thomas-debrid-fetch_server_1
+      APP_PORT: 8765
+
+  server:
+    # The app itself is the Python script in ./app, run by a stock Python image.
+    image: python:3.13.16-alpine3.24@sha256:1ac543fc677b1e24cfb220f2e9f2c73d6d9f1d5e718c2bbe5801cae34732f899
+    # Run as the umbrel user so downloaded files belong to it.
+    user: "1000:1000"
+    init: true
+    restart: on-failure
+    stop_grace_period: 1m
+    command: ["python3", "-u", "/app/server.py"]
+    environment:
+      TZ: Europe/Amsterdam
+      PORT: "8765"
+      DOWNLOAD_ROOT: /downloads
+      DATA_DIR: /data
+      HOME: /tmp
+    volumes:
+      - ${APP_DATA_DIR}/app:/app:ro
+      - ${APP_DATA_DIR}/data:/data
+      - ${UMBREL_ROOT}/home/Downloads:/downloads

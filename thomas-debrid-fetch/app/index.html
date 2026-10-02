@@ -1,0 +1,878 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Debrid Fetch</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --panel: #ffffff; --line: #e1e4ea; --text: #1a1d23; --muted: #68707f;
+    --accent: #2f6fed; --accent-text: #ffffff; --hover: #f0f3f9; --ok: #17834a; --bad: #c0352b;
+    --warn: #a86400; --track: #e6e9ef; --torbox: #0a7d6c; --rd: #7a4bc4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101216; --panel: #181b21; --line: #2a2f39; --text: #e8eaee; --muted: #949cab;
+      --accent: #5b8ff5; --accent-text: #0c0e12; --hover: #1f232b; --ok: #4cc38a; --bad: #f0766c;
+      --warn: #e0a84a; --track: #2a2f39; --torbox: #45c4b0; --rd: #b08cf0;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; display: flex; flex-direction: column; }
+  [hidden] { display: none !important; }
+  button, input, select { font: inherit; color: inherit; }
+  button { cursor: pointer; border: 1px solid var(--line); background: var(--panel); border-radius: 7px; padding: 6px 12px; }
+  button:hover:not(:disabled) { background: var(--hover); }
+  button:disabled { opacity: .5; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+  button.primary:hover:not(:disabled) { background: var(--accent); filter: brightness(1.08); }
+  button.danger { color: var(--bad); }
+  button.link { border: 0; background: none; padding: 2px 6px; color: var(--accent); }
+  input[type=text], input[type=password], input[type=search], select {
+    border: 1px solid var(--line); background: var(--panel); border-radius: 7px; padding: 6px 10px; min-width: 0; }
+  input[type=checkbox] { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); flex: none; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  header { display: flex; gap: 10px; align-items: center; padding: 10px 16px; background: var(--panel);
+    border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  header h1 { font-size: 16px; margin: 0 6px 0 0; }
+  .tabs { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .tabs button { border: 0; border-radius: 0; padding: 6px 14px; white-space: nowrap; }
+  .tabs button[aria-selected=true] { background: var(--accent); color: var(--accent-text); font-weight: 600; }
+  header input[type=search] { flex: 1 1 160px; }
+  .space { color: var(--muted); font-size: 12.5px; white-space: nowrap; }
+  .badge { display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 4px; border-radius: 99px; font-size: 11.5px;
+    font-weight: 600; background: var(--warn); color: var(--panel); text-align: center; }
+
+  main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 380px; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) minmax(0, 40%); } }
+  section { min-height: 0; display: flex; flex-direction: column; }
+  #library { border-right: 1px solid var(--line); }
+  .scroll { overflow-y: auto; flex: 1; min-height: 0; }
+  .bar { display: flex; align-items: center; gap: 10px; padding: 8px 16px; border-bottom: 1px solid var(--line);
+    color: var(--muted); font-size: 12.5px; min-height: 38px; }
+  .bar .grow { flex: 1; }
+  .bar h2 { font-size: 13px; margin: 0; color: var(--text); }
+
+  .item { border-bottom: 1px solid var(--line); background: var(--panel); }
+  .row { display: flex; align-items: center; gap: 10px; padding: 8px 16px; }
+  .row:hover { background: var(--hover); }
+  .row .name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .row .name.click { cursor: pointer; }
+  .row .meta { color: var(--muted); font-size: 12.5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .twisty { border: 0; background: none; padding: 0; width: 18px; color: var(--muted); flex: none; }
+  .tag { font-size: 11px; padding: 1px 6px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+  .tag.warn { color: var(--warn); border-color: currentColor; }
+  .tag.torbox { color: var(--torbox); border-color: currentColor; }
+  .tag.realdebrid { color: var(--rd); border-color: currentColor; }
+  .check { color: var(--ok); font-weight: 700; white-space: nowrap; font-size: 12.5px; }
+  .files { background: var(--bg); border-top: 1px solid var(--line); }
+  .files .row { padding: 5px 16px 5px 44px; font-size: 13px; }
+  .empty { padding: 40px 20px; text-align: center; color: var(--muted); }
+  .empty.error { color: var(--bad); }
+
+  footer { display: flex; gap: 10px; align-items: center; padding: 10px 16px; background: var(--panel);
+    border-top: 1px solid var(--line); flex-wrap: wrap; }
+  footer .sel { font-variant-numeric: tabular-nums; }
+  footer .grow { flex: 1; }
+  footer .dest { display: flex; align-items: center; gap: 6px; flex: 1 1 240px; min-width: 0; }
+  footer .dest button { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+
+  .job { padding: 9px 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  .job .top { display: flex; gap: 8px; align-items: baseline; }
+  .job .jname { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 13px; }
+  .job .sub { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; margin-top: 2px; overflow-wrap: anywhere;
+    display: flex; gap: 8px; align-items: center; }
+  .job .sub .text { flex: 1; min-width: 0; }
+  .job.error .sub .text { color: var(--bad); }
+  .job.done .sub .text { color: var(--ok); }
+  .track { height: 5px; border-radius: 3px; background: var(--track); margin-top: 6px; overflow: hidden; }
+  .track > div { height: 100%; background: var(--accent); width: 0; transition: width .4s linear; }
+
+  dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--text);
+    padding: 0; width: min(520px, calc(100vw - 32px)); }
+  dialog.wide { width: min(760px, calc(100vw - 32px)); }
+  dialog::backdrop { background: rgba(0, 0, 0, .45); }
+  dialog form, dialog .body { padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; }
+  dialog h2 { margin: 0; font-size: 16px; }
+  dialog label.field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+  dialog .hint { color: var(--muted); font-size: 12.5px; }
+  dialog .actions { display: flex; gap: 8px; justify-content: flex-end; align-items: center; margin-top: 4px; }
+  dialog .actions .grow { flex: 1; }
+  dialog .msg { color: var(--bad); font-size: 13px; min-height: 1.2em; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; font-size: 13px; }
+  .list { border: 1px solid var(--line); border-radius: 8px; max-height: min(50vh, 420px); overflow-y: auto; }
+  .list .row { border-bottom: 1px solid var(--line); padding: 7px 12px; }
+  .list .row:last-child { border-bottom: 0; }
+  .folderlist { border: 1px solid var(--line); border-radius: 8px; max-height: 280px; overflow-y: auto; }
+  .folderlist button { display: block; width: 100%; text-align: left; border: 0; border-radius: 0; border-bottom: 1px solid var(--line); background: none; }
+  .folderlist button:last-child { border-bottom: 0; }
+  .inline { display: flex; gap: 8px; }
+  .inline input { flex: 1; }
+  #toast { position: fixed; left: 50%; bottom: 76px; transform: translateX(-50%); background: var(--text); color: var(--bg);
+    padding: 8px 14px; border-radius: 8px; font-size: 13px; opacity: 0; pointer-events: none; transition: opacity .2s; max-width: 90vw; z-index: 10; }
+  #toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Debrid Fetch</h1>
+  <div class="tabs" role="tablist">
+    <button role="tab" data-view="torbox">TorBox</button>
+    <button role="tab" data-view="realdebrid">Real-Debrid</button>
+    <button role="tab" data-view="local">Local files</button>
+  </div>
+  <input type="search" id="search" placeholder="Filter by name" aria-label="Filter by name">
+  <select id="sort" aria-label="Sort">
+    <option value="added">Newest first</option>
+    <option value="name">Name</option>
+    <option value="size">Largest first</option>
+  </select>
+  <button id="refresh">Refresh</button>
+  <span class="space" id="space"></span>
+  <button id="openOrphans" title="Files on your drive that were removed from your debrid account">Removed from debrid<span class="badge" id="orphanCount" hidden></span></button>
+  <button id="openSettings">Settings</button>
+</header>
+
+<main>
+  <section id="library">
+    <div class="bar" id="debridBar">
+      <input type="checkbox" id="selectAll" aria-label="Select everything shown">
+      <span id="count"></span>
+    </div>
+    <div class="bar" id="localBar" hidden>
+      <input type="checkbox" id="localAll" aria-label="Select everything in this folder">
+      <div class="crumbs grow" id="localCrumbs"></div>
+      <button class="link" id="localNew">New folder</button>
+    </div>
+    <div class="scroll" id="items"></div>
+    <footer id="debridFooter">
+      <span class="sel" id="selection">Nothing selected</span>
+      <span class="dest">
+        <span>to</span>
+        <button id="pickDest" title="Choose folder"></button>
+      </span>
+      <button class="primary" id="download" disabled>Download</button>
+    </footer>
+    <footer id="localFooter" hidden>
+      <span class="sel grow" id="localSelection">Nothing selected</span>
+      <button id="localRename" disabled>Rename</button>
+      <button id="localMove" disabled>Move to…</button>
+      <button class="danger" id="localDelete" disabled>Delete</button>
+    </footer>
+  </section>
+
+  <section id="queue">
+    <div class="bar">
+      <h2>Downloads</h2>
+      <span id="queueSummary" class="grow"></span>
+      <button class="link" id="cancelAll">Cancel all</button>
+      <button class="link" id="clearDone">Clear finished</button>
+    </div>
+    <div class="scroll" id="jobs"></div>
+  </section>
+</main>
+
+<dialog id="settings">
+  <form method="dialog" id="settingsForm">
+    <h2>Settings</h2>
+    <label class="field">TorBox API key
+      <input type="password" id="torboxKey" autocomplete="off" spellcheck="false">
+      <span class="hint" id="torboxHint"></span>
+    </label>
+    <label class="field">Real-Debrid API token
+      <input type="password" id="rdKey" autocomplete="off" spellcheck="false">
+      <span class="hint" id="rdHint"></span>
+    </label>
+    <div class="two">
+      <label class="field">Files at the same time
+        <select id="concurrency"><option>1</option><option>2</option><option>3</option><option>4</option><option>6</option></select>
+      </label>
+      <label class="field">Connections per file
+        <select id="connections"><option>1</option><option>2</option><option>4</option><option>8</option><option>12</option><option>16</option></select>
+      </label>
+    </div>
+    <div class="hint" id="engineHint"></div>
+    <div class="hint">Keys are stored only on this server and are never shown again. Leave a field empty to keep the saved key.
+      TorBox: torbox.app → Settings → API key. Real-Debrid: real-debrid.com/apitoken.</div>
+    <div class="msg" id="settingsMsg"></div>
+    <div class="actions">
+      <button type="button" id="closeSettings">Close</button>
+      <button type="submit" class="primary">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="folders">
+  <div class="body">
+    <h2 id="foldersTitle">Download to</h2>
+    <div class="crumbs" id="crumbs"></div>
+    <div class="folderlist" id="folderList"></div>
+    <div class="inline">
+      <input type="text" id="newFolder" placeholder="New folder name" aria-label="New folder name">
+      <button id="makeFolder">Create</button>
+    </div>
+    <div class="msg" id="folderMsg"></div>
+    <div class="actions">
+      <button id="cancelFolder">Cancel</button>
+      <button class="primary" id="useFolder">Use this folder</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="orphans" class="wide">
+  <div class="body">
+    <h2>Removed from debrid</h2>
+    <div class="hint">These files are on your drive, but the download they came from is no longer in your debrid account.
+      Deleting here removes them from the drive only.</div>
+    <div class="list" id="orphanList"></div>
+    <div class="msg" id="orphanMsg"></div>
+    <div class="actions">
+      <label class="hint" id="orphanAllWrap"><input type="checkbox" id="orphanAll"> Select all</label>
+      <span class="grow"></span>
+      <button id="closeOrphans">Close</button>
+      <button class="danger" id="deleteOrphans" disabled>Delete from drive</button>
+    </div>
+  </div>
+</dialog>
+
+<div id="toast" role="status"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const LABEL = { torbox: 'TorBox', realdebrid: 'Real-Debrid' };
+const DEFAULT_DEST = { torbox: 'TorBox', realdebrid: 'Real-Debrid' };
+const store = {
+  get: (k, d) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } },
+  set: (k, v) => { try { localStorage.setItem(k, v); } catch {} },
+};
+
+let state = { providers: {}, root: '' };
+let view = store.get('view', 'torbox');   // torbox | realdebrid | local
+let items = [];                 // items of the current debrid view
+let selected = new Map();       // "itemId|fileId" -> {item, file}
+let expanded = new Set();
+let localPath = store.get('localPath', '');
+let localEntries = [];
+let localSel = new Set();
+let browsePath = '';
+let onFolderChosen = null;
+
+async function api(path, body) {
+  const opts = body === undefined ? {} : {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debrid-Fetch': '1' }, body: JSON.stringify(body),
+  };
+  let res, data;
+  try { res = await fetch(path, opts); } catch { throw new Error('Server not reachable'); }
+  try { data = await res.json(); } catch { data = {}; }
+  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  return data;
+}
+
+function size(n) {
+  if (!n) return '';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let i = 0;
+  while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+  return `${n.toFixed(n >= 100 || i < 2 ? 0 : n >= 10 ? 1 : 2)} ${units[i]}`;
+}
+function day(s) {
+  const d = new Date(typeof s === 'number' ? s * 1000 : s);
+  return isNaN(d) ? '' : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+}
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+function el(tag, props = {}, ...children) {
+  const node = Object.assign(document.createElement(tag), props);
+  node.append(...children.filter(c => c != null));
+  return node;
+}
+const serviceTag = p => LABEL[p] ? el('span', { className: 'tag ' + p, textContent: LABEL[p] }) : null;
+let toastTimer;
+function toast(text) {
+  $('toast').textContent = text;
+  $('toast').classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => $('toast').classList.remove('show'), 3500);
+}
+const dest = () => store.get('dest:' + view, DEFAULT_DEST[view]);
+
+// ---------------------------------------------------------------- views
+
+async function loadState() {
+  state = await api('/api/state');
+  $('space').textContent = state.total ? `${size(state.free)} free` : '';
+  $('concurrency').value = state.concurrency;
+  $('connections').value = state.connections;
+  $('torboxHint').textContent = state.providers.torbox ? 'A key is saved.' : 'No key saved yet.';
+  $('rdHint').textContent = state.providers.realdebrid ? 'A token is saved.' : 'No token saved yet.';
+  $('engineHint').textContent = `Downloading with ${state.engine}` +
+    (state.engine_note ? ` (aria2 not available: ${state.engine_note})` : '') + '.';
+}
+
+function showView(refresh) {
+  document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.view === view));
+  const isLocal = view === 'local';
+  $('debridBar').hidden = $('debridFooter').hidden = isLocal;
+  $('localBar').hidden = $('localFooter').hidden = !isLocal;
+  $('sort').hidden = isLocal;
+  $('search').value = '';
+  return isLocal ? loadLocal(localPath) : loadItems(refresh);
+}
+
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
+  view = b.dataset.view;
+  store.set('view', view);
+  showView(false);
+});
+$('refresh').onclick = () => { showView(true); loadOrphanCount(); };
+$('search').oninput = () => view === 'local' ? renderLocal() : render();
+$('sort').onchange = () => render();
+
+// ---------------------------------------------------------------- debrid library
+
+async function loadItems(refresh) {
+  $('pickDest').textContent = '/' + dest();
+  selected.clear(); expanded.clear(); items = [];
+  updateSelection();
+  const box = $('items');
+  if (!state.providers[view]) {
+    box.replaceChildren(el('div', { className: 'empty' },
+      `No ${view === 'torbox' ? 'TorBox API key' : 'Real-Debrid API token'} saved yet. `,
+      el('button', { className: 'link', textContent: 'Open Settings', onclick: openSettings })));
+    $('count').textContent = '';
+    return;
+  }
+  box.replaceChildren(el('div', { className: 'empty', textContent: 'Loading your library…' }));
+  $('refresh').disabled = true;
+  const asked = view;
+  try {
+    const data = await api(`/api/items?provider=${view}${refresh ? '&refresh=1' : ''}`);
+    if (asked !== view) return;
+    items = data.items;
+    render();
+  } catch (e) {
+    if (asked === view) box.replaceChildren(el('div', { className: 'empty error', textContent: e.message }));
+  } finally {
+    $('refresh').disabled = false;
+  }
+}
+
+// Reload the list to update the "on your drive" marks, keeping selection and open items.
+async function refreshMarks() {
+  if (view === 'local') return loadLocal(localPath);
+  if (!state.providers[view] || !items.length) return;
+  const asked = view;
+  try {
+    const fresh = (await api(`/api/items?provider=${view}`)).items;
+    if (asked !== view) return;
+    const old = new Map(items.map(i => [i.id, i]));
+    await Promise.all(fresh.map(async item => {
+      if (!item.files && old.get(item.id)?.files) await ensureFiles(item);
+    }));
+    if (asked !== view) return;
+    items = fresh;
+    const keep = new Map();
+    for (const item of items) for (const f of item.files || []) {
+      const key = item.id + '|' + f.id;
+      if (selected.has(key)) keep.set(key, { item, file: f });
+    }
+    selected = keep;
+    render();
+  } catch {}
+}
+
+function visible() {
+  const q = $('search').value.trim().toLowerCase();
+  const list = q ? items.filter(i => i.name.toLowerCase().includes(q) ||
+    (i.files || []).some(f => f.path.toLowerCase().includes(q))) : items.slice();
+  const sort = $('sort').value;
+  if (sort === 'name') list.sort((a, b) => a.name.localeCompare(b.name));
+  else if (sort === 'size') list.sort((a, b) => b.size - a.size);
+  return list;
+}
+
+function render() {
+  const list = visible();
+  $('count').textContent = plural(list.length, 'item');
+  if (!list.length) {
+    $('items').replaceChildren(el('div', { className: 'empty',
+      textContent: items.length ? 'Nothing matches the filter.' : 'Your library is empty.' }));
+    updateSelection();
+    return;
+  }
+  $('items').replaceChildren(...list.map(renderItem));
+  updateSelection();
+}
+
+function itemSelection(item) {
+  if (!item.files) return 'none';
+  const n = item.files.filter(f => selected.has(item.id + '|' + f.id)).length;
+  return n === 0 ? 'none' : n === item.files.length ? 'all' : 'some';
+}
+
+function localMark(item) {
+  const have = item.files ? item.files.filter(f => f.local).length : item.local_files;
+  if (!have) return null;
+  const all = item.files && have === item.files.length;
+  const text = all ? '✓' : item.files ? `✓ ${have}/${item.files.length}` : `✓ ${have}`;
+  const title = all ? 'On your drive' : `${plural(have, 'file')} on your drive`;
+  return el('span', { className: 'check', textContent: text, title });
+}
+
+function renderItem(item) {
+  const sel = itemSelection(item);
+  const box = el('input', { type: 'checkbox', checked: sel === 'all', indeterminate: sel === 'some',
+    disabled: !item.ready, ariaLabel: 'Select ' + item.name });
+  box.onchange = () => toggleItem(item, box.checked);
+  const open = expanded.has(item.id);
+  const twisty = el('button', { className: 'twisty', textContent: open ? '▾' : '▸', ariaLabel: 'Show files' });
+  const name = el('span', { className: 'name click', textContent: item.name });
+  twisty.onclick = name.onclick = () => toggleExpand(item);
+  const kind = item.kind === 'usenet' ? 'Usenet' : item.kind === 'webdl' ? 'Web' : null;
+  const row = el('div', { className: 'row' }, box, twisty, name,
+    localMark(item),
+    kind && el('span', { className: 'tag', textContent: kind }),
+    !item.ready ? el('span', { className: 'tag warn', textContent: item.state || 'not ready' }) : null,
+    item.files ? el('span', { className: 'meta', textContent: plural(item.files.length, 'file') }) : null,
+    el('span', { className: 'meta', textContent: size(item.size) }),
+    el('span', { className: 'meta', textContent: day(item.added) }));
+  const node = el('div', { className: 'item' }, row);
+  if (open) {
+    const files = el('div', { className: 'files' });
+    if (!item.files) files.append(el('div', { className: 'row meta', textContent: item.loadError || 'Loading files…' }));
+    else for (const f of item.files) {
+      const key = item.id + '|' + f.id;
+      const fb = el('input', { type: 'checkbox', checked: selected.has(key), disabled: !item.ready });
+      fb.onchange = () => { fb.checked ? selected.set(key, { item, file: f }) : selected.delete(key); render(); };
+      files.append(el('label', { className: 'row' }, fb,
+        el('span', { className: 'name', textContent: f.path }),
+        f.local ? el('span', { className: 'check', textContent: '✓', title: 'On your drive: ' + f.local }) : null,
+        el('span', { className: 'meta', textContent: size(f.size) })));
+    }
+    node.append(files);
+  }
+  return node;
+}
+
+async function ensureFiles(item) {
+  if (item.files) return true;
+  try {
+    const q = `provider=${view}&id=${encodeURIComponent(item.id)}&name=${encodeURIComponent(item.name)}`;
+    item.files = (await api('/api/files?' + q)).files;
+    item.loadError = '';
+    return true;
+  } catch (e) {
+    item.loadError = e.message;
+    return false;
+  }
+}
+
+async function toggleExpand(item) {
+  if (expanded.has(item.id)) { expanded.delete(item.id); return render(); }
+  expanded.add(item.id);
+  render();
+  if (!item.files) { await ensureFiles(item); render(); }
+}
+
+async function toggleItem(item, on) {
+  if (on && !(await ensureFiles(item))) { toast(item.loadError); return render(); }
+  for (const f of item.files || []) {
+    const key = item.id + '|' + f.id;
+    on ? selected.set(key, { item, file: f }) : selected.delete(key);
+  }
+  render();
+}
+
+function updateSelection() {
+  let bytes = 0;
+  for (const { file } of selected.values()) bytes += file.size || 0;
+  const n = selected.size;
+  $('selection').textContent = n ? `${plural(n, 'file')} selected${bytes ? ' · ' + size(bytes) : ''}` : 'Nothing selected';
+  $('download').disabled = !n;
+  const ready = visible().filter(i => i.ready);
+  const states = ready.map(itemSelection);
+  $('selectAll').checked = ready.length > 0 && states.every(s => s === 'all');
+  $('selectAll').indeterminate = !$('selectAll').checked && states.some(s => s !== 'none');
+  $('selectAll').disabled = !ready.length;
+}
+
+$('selectAll').onchange = async e => {
+  const on = e.target.checked;
+  const list = visible().filter(i => i.ready);
+  e.target.disabled = true;
+  for (const item of list) {
+    if (on && !(await ensureFiles(item))) continue;
+    for (const f of item.files || []) {
+      const key = item.id + '|' + f.id;
+      on ? selected.set(key, { item, file: f }) : selected.delete(key);
+    }
+  }
+  render();
+};
+
+$('download').onclick = async () => {
+  const byItem = new Map();
+  for (const { item, file } of selected.values()) {
+    if (!byItem.has(item.id)) byItem.set(item.id, { id: item.id, name: item.name, files: [] });
+    byItem.get(item.id).files.push(file);
+  }
+  $('download').disabled = true;
+  try {
+    const res = await api('/api/download', { provider: view, dest: dest(), items: [...byItem.values()] });
+    toast(res.queued ? `${plural(res.queued, 'file')} added to the queue` : 'Those files are already in the queue');
+    selected.clear();
+    render();
+    pollJobs();
+  } catch (e) {
+    toast(e.message);
+    updateSelection();
+  }
+};
+
+// ---------------------------------------------------------------- local files
+
+async function loadLocal(path) {
+  const box = $('items');
+  try {
+    const data = await api('/api/local?path=' + encodeURIComponent(path));
+    if (view !== 'local') return;
+    localPath = data.path;
+    store.set('localPath', localPath);
+    localEntries = data.entries;
+    localSel = new Set([...localSel].filter(n => localEntries.some(e => e.name === n)));
+    const parts = localPath ? localPath.split('/') : [];
+    const crumbs = [el('button', { className: 'link', textContent: state.root.split('/').pop() || '/', onclick: () => openLocal('') })];
+    parts.forEach((p, i) => crumbs.push('/', el('button', { className: 'link', textContent: p,
+      onclick: () => openLocal(parts.slice(0, i + 1).join('/')) })));
+    $('localCrumbs').replaceChildren(...crumbs);
+    renderLocal();
+  } catch (e) {
+    box.replaceChildren(el('div', { className: 'empty error', textContent: e.message }));
+  }
+}
+function openLocal(path) { localSel.clear(); $('search').value = ''; return loadLocal(path); }
+const localFull = name => (localPath ? localPath + '/' : '') + name;
+
+function localVisible() {
+  const q = $('search').value.trim().toLowerCase();
+  return q ? localEntries.filter(e => e.name.toLowerCase().includes(q)) : localEntries;
+}
+
+function renderLocal() {
+  const list = localVisible();
+  $('items').replaceChildren(...(list.length ? list.map(e => {
+    const box = el('input', { type: 'checkbox', checked: localSel.has(e.name), ariaLabel: 'Select ' + e.name });
+    box.onchange = () => { box.checked ? localSel.add(e.name) : localSel.delete(e.name); updateLocalSelection(); };
+    const name = el('span', { className: 'name' + (e.dir ? ' click' : ''), textContent: (e.dir ? '📁 ' : '') + e.name });
+    if (e.dir) name.onclick = () => openLocal(localFull(e.name));
+    return el('div', { className: 'item' }, el('div', { className: 'row' }, box, name,
+      e.partial ? el('span', { className: 'tag warn', textContent: 'incomplete' }) : null,
+      serviceTag(e.source),
+      e.dir ? el('span', { className: 'meta', textContent: plural(e.count, 'file') }) : null,
+      el('span', { className: 'meta', textContent: size(e.size) }),
+      el('span', { className: 'meta', textContent: day(e.mtime) })));
+  }) : [el('div', { className: 'empty', textContent: localEntries.length ? 'Nothing matches the filter.' : 'This folder is empty.' })]));
+  updateLocalSelection();
+}
+
+function updateLocalSelection() {
+  const n = localSel.size;
+  const bytes = localEntries.filter(e => localSel.has(e.name)).reduce((s, e) => s + e.size, 0);
+  $('localSelection').textContent = n ? `${n} selected${bytes ? ' · ' + size(bytes) : ''}` : 'Nothing selected';
+  $('localRename').disabled = n !== 1;
+  $('localMove').disabled = $('localDelete').disabled = !n;
+  const list = localVisible();
+  $('localAll').checked = list.length > 0 && list.every(e => localSel.has(e.name));
+  $('localAll').indeterminate = !$('localAll').checked && list.some(e => localSel.has(e.name));
+}
+
+$('localAll').onchange = e => {
+  for (const entry of localVisible()) e.target.checked ? localSel.add(entry.name) : localSel.delete(entry.name);
+  renderLocal();
+};
+
+async function localAction(path, body, done) {
+  try {
+    await api(path, body);
+    localSel.clear();
+    if (done) toast(done);
+  } catch (e) {
+    toast(e.message);
+  }
+  await loadLocal(localPath);
+  loadState().catch(() => {});
+  loadOrphanCount();
+}
+
+$('localNew').onclick = () => {
+  const name = prompt('Name of the new folder');
+  if (name && name.trim()) localAction('/api/mkdir', { path: localPath, name: name.trim() });
+};
+$('localRename').onclick = () => {
+  const [old] = localSel;
+  const name = prompt('New name', old);
+  if (name && name.trim() && name.trim() !== old) localAction('/api/local/rename', { path: localFull(old), name: name.trim() });
+};
+$('localMove').onclick = () => {
+  const paths = [...localSel].map(localFull);
+  pickFolder(localPath, `Move ${plural(paths.length, 'item')} to`, 'Move here', target =>
+    localAction('/api/local/move', { paths, dest: target }, 'Moved'));
+};
+$('localDelete').onclick = () => {
+  const chosen = localEntries.filter(e => localSel.has(e.name));
+  const folders = chosen.filter(e => e.dir);
+  const what = chosen.length === 1 ? `"${chosen[0].name}"` : plural(chosen.length, 'item');
+  const extra = folders.length ? `\n\nThis includes ${plural(folders.length, 'folder')} with everything inside (${
+    plural(folders.reduce((s, e) => s + e.count, 0), 'file')}).` : '';
+  if (confirm(`Delete ${what} from the drive? This cannot be undone.${extra}`))
+    localAction('/api/local/delete', { paths: chosen.map(e => localFull(e.name)) }, 'Deleted');
+};
+
+// ---------------------------------------------------------------- removed from debrid
+
+let orphanFiles = [];
+let orphanSel = new Set();
+
+async function loadOrphanCount() {
+  try {
+    const data = await api('/api/orphans');
+    $('orphanCount').textContent = data.files.length;
+    $('orphanCount').hidden = !data.files.length;
+  } catch {}
+}
+
+function renderOrphans() {
+  $('orphanList').replaceChildren(...(orphanFiles.length ? orphanFiles.map(f => {
+    const box = el('input', { type: 'checkbox', checked: orphanSel.has(f.path) });
+    box.onchange = () => { box.checked ? orphanSel.add(f.path) : orphanSel.delete(f.path); updateOrphanSelection(); };
+    return el('label', { className: 'row' }, box,
+      el('span', { className: 'name', textContent: f.path, title: f.item_name ? 'From: ' + f.item_name : '' }),
+      serviceTag(f.provider),
+      el('span', { className: 'meta', textContent: size(f.size) }));
+  }) : [el('div', { className: 'empty', textContent: 'Nothing here. Every downloaded file is still in your debrid account.' })]));
+  $('orphanAllWrap').hidden = !orphanFiles.length;
+  updateOrphanSelection();
+}
+
+function updateOrphanSelection() {
+  const n = orphanSel.size;
+  const bytes = orphanFiles.filter(f => orphanSel.has(f.path)).reduce((s, f) => s + f.size, 0);
+  $('deleteOrphans').disabled = !n;
+  $('deleteOrphans').textContent = n ? `Delete ${plural(n, 'file')} from drive${bytes ? ' (' + size(bytes) + ')' : ''}` : 'Delete from drive';
+  $('orphanAll').checked = orphanFiles.length > 0 && n === orphanFiles.length;
+}
+
+async function loadOrphans(refresh) {
+  $('orphanMsg').textContent = '';
+  try {
+    const data = await api('/api/orphans' + (refresh ? '?refresh=1' : ''));
+    orphanFiles = data.files;
+    orphanSel = new Set([...orphanSel].filter(p => orphanFiles.some(f => f.path === p)));
+    $('orphanMsg').textContent = data.notes.join(' ');
+    $('orphanCount').textContent = orphanFiles.length;
+    $('orphanCount').hidden = !orphanFiles.length;
+  } catch (e) {
+    orphanFiles = [];
+    $('orphanMsg').textContent = e.message;
+  }
+  renderOrphans();
+}
+
+$('openOrphans').onclick = () => {
+  orphanSel.clear();
+  $('orphanList').replaceChildren(el('div', { className: 'empty', textContent: 'Checking your debrid account…' }));
+  $('orphans').showModal();
+  loadOrphans(true);
+};
+$('closeOrphans').onclick = () => $('orphans').close();
+$('orphanAll').onchange = e => {
+  orphanSel = new Set(e.target.checked ? orphanFiles.map(f => f.path) : []);
+  renderOrphans();
+};
+$('deleteOrphans').onclick = async () => {
+  const paths = [...orphanSel];
+  if (!confirm(`Delete ${plural(paths.length, 'file')} from the drive? This cannot be undone.`)) return;
+  try {
+    const res = await api('/api/local/delete', { paths, prune: true });
+    toast(`${plural(res.deleted, 'file')} deleted`);
+  } catch (e) {
+    toast(e.message);
+  }
+  orphanSel.clear();
+  await loadOrphans(false);
+  loadState().catch(() => {});
+  if (view === 'local') loadLocal(localPath);
+};
+
+// ---------------------------------------------------------------- queue
+
+let pollTimer;
+let doneCount = null;
+const STATUS = { queued: 'Waiting', downloading: 'Downloading', done: 'Done', error: 'Failed', cancelled: 'Cancelled' };
+
+function eta(job) {
+  if (!job.speed || !job.size) return '';
+  const s = Math.round((job.size - job.done) / job.speed);
+  if (s < 60) return `${s}s left`;
+  if (s < 3600) return `${Math.round(s / 60)} min left`;
+  return `${Math.floor(s / 3600)}h ${Math.round(s % 3600 / 60)}m left`;
+}
+
+function renderJob(job) {
+  const pct = job.size ? Math.min(100, job.done / job.size * 100) : 0;
+  let sub = STATUS[job.status];
+  if (job.status === 'downloading') {
+    sub = [`${size(job.done) || '0 B'} of ${size(job.size) || '?'}`, job.speed ? size(job.speed) + '/s' : '', eta(job)]
+      .filter(Boolean).join(' · ');
+    if (job.error) sub += ' · ' + job.error;
+  } else if (job.status === 'error') sub = 'Failed: ' + job.error;
+  else if (job.status === 'done') sub = `Done · ${size(job.size || job.done)}`;
+  else if (job.status === 'queued') sub = `Waiting · ${size(job.size)}`;
+
+  const act = (label, action) => el('button', { className: 'link', textContent: label,
+    onclick: async () => { try { await api('/api/jobs/action', { action, id: job.id }); } catch (e) { toast(e.message); } pollJobs(); } });
+  const active = job.status === 'queued' || job.status === 'downloading';
+  const node = el('div', { className: 'job ' + job.status },
+    el('div', { className: 'top' },
+      el('span', { className: 'jname', textContent: job.name, title: job.path }),
+      active ? act('Cancel', 'cancel') : null,
+      job.status === 'error' || job.status === 'cancelled' ? act('Retry', 'retry') : null,
+      !active ? act('Remove', 'remove') : null),
+    el('div', { className: 'sub' }, serviceTag(job.provider), el('span', { className: 'text', textContent: sub })));
+  if (job.status === 'downloading') {
+    const bar = el('div');
+    bar.style.width = pct + '%';
+    node.append(el('div', { className: 'track' }, bar));
+  }
+  return node;
+}
+
+async function pollJobs() {
+  clearTimeout(pollTimer);
+  let busy = false;
+  try {
+    const { jobs } = await api('/api/jobs');
+    const order = { downloading: 0, queued: 1, error: 2, cancelled: 3, done: 4 };
+    const sorted = jobs.map((j, i) => [j, i]).sort((a, b) => order[a[0].status] - order[b[0].status] || a[1] - b[1]).map(x => x[0]);
+    $('jobs').replaceChildren(...(sorted.length ? sorted.map(renderJob)
+      : [el('div', { className: 'empty', textContent: 'Select files on the left and press Download.' })]));
+    const running = jobs.filter(j => j.status === 'downloading');
+    const waiting = jobs.filter(j => j.status === 'queued').length;
+    busy = running.length + waiting > 0;
+    const speed = running.reduce((s, j) => s + j.speed, 0);
+    $('queueSummary').textContent = busy
+      ? `${running.length} active, ${waiting} waiting${speed ? ' · ' + size(speed) + '/s' : ''}` : '';
+    $('cancelAll').hidden = !busy;
+    $('clearDone').hidden = !jobs.some(j => j.status !== 'queued' && j.status !== 'downloading');
+    document.title = busy && speed ? `${size(speed)}/s · Debrid Fetch` : 'Debrid Fetch';
+    // A finished download changes what is on the drive.
+    const finished = jobs.filter(j => j.status === 'done').map(j => j.id).join();
+    if (doneCount !== null && finished !== doneCount) { refreshMarks(); loadState().catch(() => {}); }
+    doneCount = finished;
+  } catch {
+    $('queueSummary').textContent = 'Server not reachable';
+  }
+  pollTimer = setTimeout(pollJobs, busy ? 1500 : 6000);
+}
+$('cancelAll').onclick = async () => { await api('/api/jobs/action', { action: 'cancel_all' }).catch(e => toast(e.message)); pollJobs(); };
+$('clearDone').onclick = async () => { await api('/api/jobs/action', { action: 'clear' }).catch(e => toast(e.message)); pollJobs(); };
+
+// ---------------------------------------------------------------- settings
+
+function openSettings() {
+  $('torboxKey').value = $('rdKey').value = '';
+  $('settingsMsg').textContent = '';
+  $('settings').showModal();
+  loadState().catch(() => {});
+}
+$('openSettings').onclick = openSettings;
+$('closeSettings').onclick = () => $('settings').close();
+$('settingsForm').onsubmit = async e => {
+  e.preventDefault();
+  const body = { concurrency: Number($('concurrency').value), connections: Number($('connections').value) };
+  if ($('torboxKey').value.trim()) body.torbox_key = $('torboxKey').value.trim();
+  if ($('rdKey').value.trim()) body.rd_key = $('rdKey').value.trim();
+  $('settingsMsg').textContent = '';
+  try {
+    await api('/api/settings', body);
+    $('settings').close();
+    await loadState();
+    showView(false);
+    loadOrphanCount();
+    toast('Settings saved');
+  } catch (err) {
+    $('settingsMsg').textContent = 'Key not accepted: ' + err.message;
+  }
+};
+
+// ---------------------------------------------------------------- folder picker
+
+function pickFolder(start, title, button, onChosen) {
+  $('foldersTitle').textContent = title;
+  $('useFolder').textContent = button;
+  onFolderChosen = onChosen;
+  $('folders').showModal();
+  return browse(start);
+}
+
+async function browse(path) {
+  $('folderMsg').textContent = '';
+  try {
+    const data = await api('/api/folders?path=' + encodeURIComponent(path));
+    browsePath = data.path;
+    const parts = browsePath ? browsePath.split('/') : [];
+    const crumbs = [el('button', { className: 'link', textContent: state.root, onclick: () => browse('') })];
+    parts.forEach((p, i) => crumbs.push('/', el('button', { className: 'link', textContent: p,
+      onclick: () => browse(parts.slice(0, i + 1).join('/')) })));
+    $('crumbs').replaceChildren(...crumbs);
+    $('folderList').replaceChildren(...(data.folders.length
+      ? data.folders.map(f => el('button', { textContent: '📁 ' + f, onclick: () => browse((browsePath ? browsePath + '/' : '') + f) }))
+      : [el('div', { className: 'empty', textContent: 'No subfolders here.' })]));
+  } catch (e) {
+    $('folderMsg').textContent = e.message;
+  }
+}
+$('pickDest').onclick = () => pickFolder(dest(), 'Download to', 'Use this folder', target => {
+  store.set('dest:' + view, target);
+  $('pickDest').textContent = '/' + target;
+});
+$('cancelFolder').onclick = () => $('folders').close();
+$('useFolder').onclick = () => {
+  $('folders').close();
+  if (onFolderChosen) onFolderChosen(browsePath);
+};
+$('makeFolder').onclick = async () => {
+  const name = $('newFolder').value.trim();
+  if (!name) return;
+  try {
+    const res = await api('/api/mkdir', { path: browsePath, name });
+    $('newFolder').value = '';
+    browse(res.path);
+  } catch (e) {
+    $('folderMsg').textContent = e.message;
+  }
+};
+
+// ---------------------------------------------------------------- start
+
+(async () => {
+  try {
+    await loadState();
+    if (view !== 'local' && !state.providers[view]) {
+      const other = view === 'torbox' ? 'realdebrid' : 'torbox';
+      if (state.providers[other]) view = other;
+    }
+    await showView(false);
+    if (!state.root_ok) toast(`Download folder ${state.root} is not writable`);
+    loadOrphanCount();
+  } catch (e) {
+    $('items').replaceChildren(el('div', { className: 'empty error', textContent: e.message }));
+  }
+  pollJobs();
+})();
+</script>
+</body>
+</html>
