@@ -255,7 +255,7 @@ let view = store.get('view', 'torbox');   // torbox | realdebrid | local
 let items = [];                 // items of the current debrid view
 let selected = new Map();       // "itemId|fileId" -> {item, file}
 let expanded = new Set();
-let localPath = store.get('localPath', '');
+let localPath = '';
 let localEntries = [];
 let localSel = new Set();
 let browsePath = '';
@@ -319,7 +319,7 @@ function showView(refresh) {
   $('localBar').hidden = $('localFooter').hidden = !isLocal;
   $('sort').hidden = isLocal;
   $('search').value = '';
-  return isLocal ? loadLocal(localPath) : loadItems(refresh);
+  return isLocal ? openLocal('') : loadItems(refresh);
 }
 
 document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
@@ -540,11 +540,10 @@ async function loadLocal(path) {
     const data = await api('/api/local?path=' + encodeURIComponent(path));
     if (view !== 'local') return;
     localPath = data.path;
-    store.set('localPath', localPath);
     localEntries = data.entries;
     localSel = new Set([...localSel].filter(n => localEntries.some(e => e.name === n)));
     const parts = localPath ? localPath.split('/') : [];
-    const crumbs = [el('button', { className: 'link', textContent: state.root.split('/').pop() || '/', onclick: () => openLocal('') })];
+    const crumbs = [el('button', { className: 'link', textContent: state.root_label, onclick: () => openLocal('') })];
     parts.forEach((p, i) => crumbs.push('/', el('button', { className: 'link', textContent: p,
       onclick: () => openLocal(parts.slice(0, i + 1).join('/')) })));
     $('localCrumbs').replaceChildren(...crumbs);
@@ -824,7 +823,7 @@ async function browse(path) {
     const data = await api('/api/folders?path=' + encodeURIComponent(path));
     browsePath = data.path;
     const parts = browsePath ? browsePath.split('/') : [];
-    const crumbs = [el('button', { className: 'link', textContent: state.root, onclick: () => browse('') })];
+    const crumbs = [el('button', { className: 'link', textContent: state.root_label, onclick: () => browse('') })];
     parts.forEach((p, i) => crumbs.push('/', el('button', { className: 'link', textContent: p,
       onclick: () => browse(parts.slice(0, i + 1).join('/')) })));
     $('crumbs').replaceChildren(...crumbs);

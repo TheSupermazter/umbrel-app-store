@@ -9,6 +9,7 @@ Configuration through environment variables:
   PORT           port to listen on (default 8765)
   HOST           address to bind (default 0.0.0.0)
   DOWNLOAD_ROOT  folder downloads are written under and that Local files shows
+  ROOT_LABEL     name shown for that folder (default: its folder name)
   DATA_DIR       where config.json, jobs.json, manifest.json and bin/aria2c live
   ARIA2C         path to an aria2c binary to use instead of the fetched one
 """
@@ -38,6 +39,8 @@ HERE = Path(__file__).resolve().parent
 PORT = int(os.environ.get("PORT", "8765"))
 HOST = os.environ.get("HOST", "0.0.0.0")
 ROOT = Path(os.environ.get("DOWNLOAD_ROOT", "/downloads")).resolve()
+# Name shown for the download folder in the page.
+ROOT_LABEL = os.environ.get("ROOT_LABEL") or ROOT.name or "/"
 DATA_DIR = Path(os.environ.get("DATA_DIR", HERE / "data")).resolve()
 CONFIG_FILE = DATA_DIR / "config.json"
 JOBS_FILE = DATA_DIR / "jobs.json"
@@ -1090,7 +1093,7 @@ def state():
         free = total = 0
     running = aria2.proc is not None and aria2.proc.poll() is None
     return {
-        "root": str(ROOT), "root_ok": ROOT.is_dir() and os.access(ROOT, os.W_OK),
+        "root": str(ROOT), "root_label": ROOT_LABEL, "root_ok": ROOT.is_dir() and os.access(ROOT, os.W_OK),
         "free": free, "total": total, "concurrency": config["concurrency"], "connections": config["connections"],
         "providers": {name: p.configured() for name, p in PROVIDERS.items()},
         "engine": f"aria2 {aria2.version}" if running else "built-in downloader",
