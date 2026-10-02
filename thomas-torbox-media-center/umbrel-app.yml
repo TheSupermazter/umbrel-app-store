@@ -1,0 +1,51 @@
+manifestVersion: 1.1
+id: thomas-torbox-media-center
+# App data only holds the settings (including the TorBox API key).
+storage:
+  dataRoot: data
+folderAccess:
+  - id: umbrel-downloads
+    name: Downloads
+    note: The library is written to a "torbox" folder inside this folder. Everything in that torbox folder is deleted each time the app starts, so do not keep your own files in it. Jellyfin on Umbrel sees it at /downloads/torbox.
+    mounts:
+      - service: server
+        targetPath: /library
+        readOnly: false
+category: media
+name: TorBox Media Center
+version: "2.0.0"
+tagline: Your TorBox files as a library for Jellyfin and Emby
+icon: https://torbox.app/logo.png
+description: >-
+  TorBox Media Center turns the video files in your TorBox account into a
+  media library. It writes small .strm link files that take up almost no
+  space, and players such as Jellyfin and Emby stream the videos straight from
+  TorBox. A paid TorBox plan is required.
+
+
+  Open the app and paste your TorBox API key (from torbox.app/settings) to
+  start. The key is stored only on your Umbrel.
+
+
+  The library appears in a "torbox" folder inside your Downloads folder. In
+  Jellyfin on Umbrel, add /downloads/torbox/movies and /downloads/torbox/series
+  as library folders. Everything in that torbox folder is deleted and rebuilt
+  each time the app starts, so do not keep your own files in it.
+
+
+  This package uses the .strm method only, which Plex does not support.
+releaseNotes: ""
+developer: TorBox
+website: https://torbox.app
+dependencies: []
+repo: https://github.com/TorBox-App/torbox-media-center
+support: https://github.com/TorBox-App/torbox-media-center/issues
+permissions:
+  - STORAGE_DOWNLOADS
+port: 8791
+gallery: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+submitter: Thomas Norden
+submission: https://github.com/TheSupermazter/umbrel-app-store

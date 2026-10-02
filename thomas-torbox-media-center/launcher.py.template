@@ -1,0 +1,581 @@
+# Umbrel launcher for TorBox Media Center.
+#
+# TorBox Media Center has no web UI and reads its settings from environment
+# variables. This launcher gives the Umbrel app a setup/status page, keeps the
+# API key in the app's data folder, and runs the media center as a child
+# process with those settings.
+#
+# This file is rendered by Umbrel with envsubst, so it must not contain any
+# dollar signs. It only uses the Python standard library.
+
+import collections
+import json
+import os
+import signal
+import subprocess
+import sys
+import threading
+import time
+import urllib.error
+import urllib.request
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+APP_MAIN = os.environ.get("TMC_APP_MAIN", "/app/main.py")
+DATA_DIR = os.environ.get("TMC_DATA_DIR", "/data")
+LIBRARY_DIR = os.environ.get("TMC_LIBRARY_DIR", "/library")
+WORK_DIR = os.environ.get("TMC_WORK_DIR", "/tmp/torbox-media-center")
+PORT = int(os.environ.get("TMC_PORT", "8080"))
+# Only for running the launcher outside of Umbrel.
+SKIP_MOUNT_CHECK = os.environ.get("TMC_SKIP_MOUNT_CHECK") == "1"
+
+# The media center empties its mount path on every start, so it only ever gets
+# this subfolder of the folder the user selected, never the folder itself.
+MOUNT_PATH = os.path.join(LIBRARY_DIR, "torbox")
+
+SETTINGS_FILE = os.path.join(DATA_DIR, "settings.json")
+STATE_FILE = os.path.join(DATA_DIR, "state.json")
+
+REFRESH_TIMES = ["slowest", "very_slow", "slow", "normal", "fast", "ultra_fast"]
+DEFAULT_SETTINGS = {
+    "api_key": "",
+    "refresh_time": "normal",
+    "enable_metadata": False,
+    "raw_mode": False,
+}
+
+USER_AGENT = "TorBox-Media-Center/v2.0.0 TorBox/1.0"
+KEY_CHECK_URL = "https://api.torbox.app/v1/api/user/me"
+
+lock = threading.Lock()
+wake = threading.Event()
+stopping = threading.Event()
+log_lines = collections.deque(maxlen=300)
+status = {"state": "starting", "message": "Starting…", "foreign": [], "key_check": ""}
+key_state = {"key": None, "rejected": False, "at": 0.0}
+strm_counts = {"at": 0.0, "movies": 0, "series": 0, "total": 0}
+
+
+def read_json(path, default):
+    try:
+        with open(path) as file:
+            return json.load(file)
+    except (OSError, ValueError):
+        return default
+
+
+def write_json(path, data):
+    tmp_path = path + ".tmp"
+    fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as file:
+        json.dump(data, file, indent=2)
+    os.replace(tmp_path, path)
+
+
+def load_settings():
+    settings = dict(DEFAULT_SETTINGS)
+    saved = read_json(SETTINGS_FILE, {})
+    if isinstance(saved, dict):
+        settings.update({key: saved[key] for key in DEFAULT_SETTINGS if key in saved})
+    if settings["refresh_time"] not in REFRESH_TIMES:
+        settings["refresh_time"] = DEFAULT_SETTINGS["refresh_time"]
+    return settings
+
+
+def redact(text, api_key):
+    if api_key:
+        text = text.replace(api_key, "[hidden]")
+    return text
+
+
+def log(message):
+    line = time.strftime("%Y-%m-%d %H:%M:%S") + " launcher " + message
+    with lock:
+        log_lines.append(line)
+    print(line, flush=True)
+
+
+def set_status(state, message, foreign=None):
+    with lock:
+        changed = status["state"] != state or status["message"] != message
+        status["state"] = state
+        status["message"] = message
+        status["foreign"] = foreign or []
+    if changed:
+        log(message)
+
+
+def check_key(api_key):
+    """Returns (rejected, message). Only a clear refusal from TorBox counts as rejected."""
+    request = urllib.request.Request(
+        KEY_CHECK_URL,
+        headers={"Authorization": "Bearer " + api_key, "User-Agent": USER_AGENT},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            body = json.load(response)
+        if body.get("success"):
+            return False, "TorBox accepted the API key."
+        return True, "TorBox did not accept the API key."
+    except urllib.error.HTTPError as error:
+        if error.code in (401, 403):
+            return True, "TorBox rejected the API key. Check that you copied it completely."
+        return False, "Could not check the API key (TorBox answered with HTTP " + str(error.code) + ")."
+    except (OSError, ValueError):
+        return False, "Could not reach TorBox to check the API key."
+
+
+def refresh_key_check(api_key):
+    """Checks a new key right away and a rejected key again every 5 minutes."""
+    recheck = key_state["rejected"] and time.time() - key_state["at"] > 300
+    if api_key == key_state["key"] and not recheck:
+        return
+    rejected, message = check_key(api_key) if api_key else (False, "")
+    key_state.update({"key": api_key, "rejected": rejected, "at": time.time()})
+    with lock:
+        status["key_check"] = message
+
+
+def folder_identity(path):
+    info = os.stat(path)
+    return [info.st_dev, info.st_ino]
+
+
+def foreign_files(path, limit=5):
+    """Files in the mount path that the media center did not create."""
+    found = []
+    for root, _dirs, files in os.walk(path):
+        for name in files:
+            if not name.endswith(".strm"):
+                found.append(os.path.relpath(os.path.join(root, name), path))
+                if len(found) >= limit:
+                    return found
+    return found
+
+
+def adopt_mount_path():
+    state = read_json(STATE_FILE, {})
+    state["mount_identity"] = folder_identity(MOUNT_PATH)
+    write_json(STATE_FILE, state)
+
+
+def check_blockers(settings):
+    """Returns (state, message, foreign files) if the media center must not start."""
+    if not settings["api_key"]:
+        return "needs_key", "Waiting for a TorBox API key.", []
+    if key_state["rejected"]:
+        # Starting would empty the library and then find nothing to put in it.
+        return "bad_key", "Waiting for a valid TorBox API key.", []
+    if not SKIP_MOUNT_CHECK and not os.path.ismount(LIBRARY_DIR):
+        return "needs_folder", "No folder is selected for this app in Umbrel.", []
+    try:
+        if not os.path.isdir(MOUNT_PATH):
+            os.makedirs(MOUNT_PATH)
+            adopt_mount_path()
+            return None
+        known = read_json(STATE_FILE, {}).get("mount_identity")
+        if known != folder_identity(MOUNT_PATH):
+            foreign = foreign_files(MOUNT_PATH)
+            if foreign:
+                return "blocked_folder", "The torbox folder already contains other files.", foreign
+            adopt_mount_path()
+    except OSError as error:
+        return "folder_error", "Cannot use the torbox folder: " + str(error), []
+    return None
+
+
+def start_media_center(settings):
+    os.makedirs(WORK_DIR, exist_ok=True)
+    env = dict(os.environ)
+    env.update(
+        {
+            "TORBOX_API_KEY": settings["api_key"],
+            "MOUNT_METHOD": "strm",
+            "MOUNT_PATH": MOUNT_PATH,
+            "MOUNT_REFRESH_TIME": settings["refresh_time"],
+            "ENABLE_METADATA": "true" if settings["enable_metadata"] else "false",
+            "RAW_MODE": "true" if settings["raw_mode"] else "false",
+            "PYTHONUNBUFFERED": "1",
+        }
+    )
+    # The media center writes its cache databases to the working directory.
+    process = subprocess.Popen(
+        [sys.executable, APP_MAIN],
+        cwd=WORK_DIR,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        errors="replace",
+    )
+
+    def pump():
+        # The media center logs the API key on start, so every line is redacted.
+        for line in process.stdout:
+            line = redact(line.rstrip("\n"), settings["api_key"])
+            with lock:
+                log_lines.append(line)
+            print(line, flush=True)
+
+    threading.Thread(target=pump, daemon=True).start()
+    return process
+
+
+def stop_media_center(process):
+    if process.poll() is None:
+        process.terminate()
+        try:
+            process.wait(timeout=20)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
+
+
+def supervise():
+    failures = 0
+    while not stopping.is_set():
+        wake.clear()
+        settings = load_settings()
+
+        refresh_key_check(settings["api_key"])
+        blocker = check_blockers(settings)
+        if blocker:
+            set_status(*blocker)
+            wake.wait(5)
+            continue
+
+        process = start_media_center(settings)
+        started = time.time()
+        set_status("running", "TorBox Media Center is running.")
+        while process.poll() is None and not wake.is_set() and not stopping.is_set():
+            time.sleep(0.5)
+
+        if process.poll() is None:
+            # Settings changed or the app is stopping.
+            stop_media_center(process)
+            failures = 0
+            continue
+
+        failures = failures + 1 if time.time() - started < 120 else 1
+        delay = min(30 * failures, 300)
+        set_status(
+            "crashed",
+            "TorBox Media Center stopped (exit code "
+            + str(process.returncode)
+            + "). Trying again in "
+            + str(delay)
+            + " seconds.",
+        )
+        wake.wait(delay)
+
+
+def count_strm_files():
+    with lock:
+        if time.time() - strm_counts["at"] < 30:
+            return dict(strm_counts)
+    counts = {"at": time.time(), "movies": 0, "series": 0, "total": 0}
+    for root, _dirs, files in os.walk(MOUNT_PATH):
+        amount = sum(1 for name in files if name.endswith(".strm"))
+        counts["total"] += amount
+        top = os.path.relpath(root, MOUNT_PATH).split(os.sep)[0]
+        if top in ("movies", "series"):
+            counts[top] += amount
+    with lock:
+        strm_counts.update(counts)
+    return counts
+
+
+def status_payload():
+    settings = load_settings()
+    counts = count_strm_files()
+    with lock:
+        payload = dict(status)
+        payload["log"] = list(log_lines)[-120:]
+    payload["key_set"] = bool(settings["api_key"])
+    payload["key_hint"] = settings["api_key"][-4:] if len(settings["api_key"]) >= 12 else ""
+    payload["refresh_time"] = settings["refresh_time"]
+    payload["enable_metadata"] = settings["enable_metadata"]
+    payload["raw_mode"] = settings["raw_mode"]
+    payload["movies"] = counts["movies"]
+    payload["series"] = counts["series"]
+    payload["total"] = counts["total"]
+    return payload
+
+
+PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TorBox Media Center</title>
+<style>
+  :root { color-scheme: dark; --bg: #0b1f24; --card: #12303a; --line: #1f4653; --text: #e8f3f1; --muted: #9bb8b6; --accent: #34ba8f; --warn: #f0b84a; --bad: #ef6b6b; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 48px; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 0 0 12px; }
+  p { margin: 0 0 12px; }
+  .muted { color: var(--muted); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin-top: 16px; }
+  .state { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--warn); flex: none; }
+  .dot.running { background: var(--accent); }
+  .dot.crashed, .dot.bad_key, .dot.blocked_folder, .dot.folder_error { background: var(--bad); }
+  .stats { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 14px; }
+  .stats b { display: block; font-size: 22px; font-variant-numeric: tabular-nums; }
+  label { display: block; font-weight: 600; margin: 14px 0 4px; }
+  label.check { display: flex; gap: 8px; align-items: flex-start; font-weight: 400; }
+  input[type=password], select { width: 100%; padding: 9px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit; }
+  button { margin-top: 16px; padding: 9px 16px; border: 0; border-radius: 8px; background: var(--accent); color: #062019; font: inherit; font-weight: 600; cursor: pointer; }
+  button.danger { background: var(--bad); color: #2a0808; }
+  code { background: var(--bg); padding: 1px 5px; border-radius: 4px; }
+  pre { margin: 0; max-height: 320px; overflow: auto; background: var(--bg); border-radius: 8px; padding: 12px; font-size: 12px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; }
+  ul { margin: 0 0 12px; padding-left: 20px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>TorBox Media Center</h1>
+  <p class="muted">Turns the video files in your TorBox account into a library for Jellyfin or Emby.</p>
+
+  <section class="card">
+    <div class="state"><span class="dot" id="dot"></span><span id="message">Loading…</span></div>
+    <p class="muted" id="key-check" style="margin-top:8px"></p>
+    <div class="stats" id="stats" hidden>
+      <div><b id="movies">0</b><span class="muted">in movies</span></div>
+      <div><b id="series">0</b><span class="muted">in series</span></div>
+      <div><b id="total">0</b><span class="muted">files in total</span></div>
+    </div>
+  </section>
+
+  <section class="card" id="needs-folder" hidden>
+    <h2>Select a folder</h2>
+    <p>Open this app's settings in Umbrel and select a folder under Downloads. The library is written to a <code>torbox</code> folder inside it.</p>
+  </section>
+
+  <section class="card" id="blocked" hidden>
+    <h2>The torbox folder is not empty</h2>
+    <p>TorBox Media Center deletes everything in its <code>torbox</code> folder each time it starts. That folder already contains files this app did not create, for example:</p>
+    <ul id="foreign"></ul>
+    <p>Move those files somewhere else, or select a different folder in this app's settings in Umbrel.</p>
+    <button class="danger" id="adopt">Delete these files and use the folder</button>
+  </section>
+
+  <section class="card">
+    <h2>Settings</h2>
+    <form id="form">
+      <label for="api_key">TorBox API key</label>
+      <input type="password" id="api_key" autocomplete="off" placeholder="Paste your API key">
+      <p class="muted" id="key-state" style="margin-top:6px"></p>
+      <p class="muted">You can find the key in your TorBox settings at torbox.app/settings. It is stored only on this Umbrel.</p>
+
+      <label for="refresh_time">Check TorBox for new files</label>
+      <select id="refresh_time">
+        <option value="ultra_fast">Every hour</option>
+        <option value="fast">Every 2 hours</option>
+        <option value="normal">Every 3 hours</option>
+        <option value="slow">Every 6 hours</option>
+        <option value="very_slow">Every 12 hours</option>
+        <option value="slowest">Every 24 hours</option>
+      </select>
+
+      <label class="check"><input type="checkbox" id="enable_metadata"> <span>Sort into movies and series. TorBox looks up each file, which is slower and can run into rate limits. When off, everything goes into <code>movies</code>.</span></label>
+      <label class="check"><input type="checkbox" id="raw_mode"> <span>Keep the original folder structure from TorBox instead of movies and series.</span></label>
+
+      <button type="submit">Save and restart</button>
+      <span class="muted" id="saved" style="margin-left:10px"></span>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>Use it in Jellyfin or Emby</h2>
+    <p>The library is in the <code>torbox</code> folder inside the folder selected for this app, which is Downloads unless you changed it. In Jellyfin on Umbrel, add <code>/downloads/torbox/movies</code> and <code>/downloads/torbox/series</code> as library folders.</p>
+    <p class="muted">The files are small .strm links, so they only play in players that support them, such as Jellyfin and Emby. Plex does not.</p>
+  </section>
+
+  <section class="card">
+    <h2>Log</h2>
+    <pre id="log"></pre>
+  </section>
+</main>
+<script>
+  var formLoaded = false;
+  function byId(id) { return document.getElementById(id); }
+
+  function render(data) {
+    byId("dot").className = "dot " + data.state;
+    byId("message").textContent = data.message;
+    byId("key-check").textContent = data.key_check || "";
+    byId("stats").hidden = data.state !== "running";
+    byId("movies").textContent = data.movies;
+    byId("series").textContent = data.series;
+    byId("total").textContent = data.total;
+    byId("needs-folder").hidden = data.state !== "needs_folder";
+    byId("blocked").hidden = data.state !== "blocked_folder";
+
+    var list = byId("foreign");
+    list.textContent = "";
+    data.foreign.forEach(function (name) {
+      var item = document.createElement("li");
+      item.textContent = name;
+      list.appendChild(item);
+    });
+
+    if (data.key_set) {
+      byId("key-state").textContent = "A key is saved" + (data.key_hint ? " (ending in " + data.key_hint + ")" : "") + ". Leave the field empty to keep it.";
+    } else {
+      byId("key-state").textContent = "No key saved yet.";
+    }
+
+    if (!formLoaded) {
+      byId("refresh_time").value = data.refresh_time;
+      byId("enable_metadata").checked = data.enable_metadata;
+      byId("raw_mode").checked = data.raw_mode;
+      formLoaded = true;
+    }
+
+    var logBox = byId("log");
+    var atBottom = logBox.scrollTop + logBox.clientHeight >= logBox.scrollHeight - 20;
+    logBox.textContent = data.log.join("\\n");
+    if (atBottom) { logBox.scrollTop = logBox.scrollHeight; }
+  }
+
+  function refresh() {
+    fetch("api/status").then(function (response) { return response.json(); }).then(render).catch(function () {});
+  }
+
+  function post(path, body) {
+    return fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    }).then(function (response) {
+      if (!response.ok) { throw new Error("Request failed"); }
+      return response.json();
+    });
+  }
+
+  byId("form").addEventListener("submit", function (event) {
+    event.preventDefault();
+    post("api/settings", {
+      api_key: byId("api_key").value.trim(),
+      refresh_time: byId("refresh_time").value,
+      enable_metadata: byId("enable_metadata").checked,
+      raw_mode: byId("raw_mode").checked
+    }).then(function () {
+      byId("api_key").value = "";
+      byId("saved").textContent = "Saved.";
+      refresh();
+    }).catch(function () {
+      byId("saved").textContent = "Could not save.";
+    });
+  });
+
+  byId("adopt").addEventListener("click", function () {
+    if (!confirm("Everything in the torbox folder will be deleted. Continue?")) { return; }
+    post("api/adopt", {}).then(refresh);
+  });
+
+  refresh();
+  setInterval(refresh, 4000);
+</script>
+</body>
+</html>
+"""
+
+
+class Handler(BaseHTTPRequestHandler):
+    def log_message(self, format, *args):
+        pass
+
+    def send_body(self, code, content_type, body):
+        self.send_response(code)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def send_json(self, code, data):
+        self.send_body(code, "application/json", json.dumps(data).encode())
+
+    def do_GET(self):
+        path = self.path.split("?")[0]
+        if path == "/":
+            self.send_body(200, "text/html; charset=utf-8", PAGE.encode())
+        elif path == "/api/status":
+            self.send_json(200, status_payload())
+        else:
+            self.send_json(404, {"error": "not found"})
+
+    def same_origin(self):
+        # Other sites cannot send JSON to this app without a preflight, and a
+        # request that does carry an Origin must come from this app's own page.
+        if self.headers.get("Content-Type", "").split(";")[0].strip() != "application/json":
+            return False
+        origin = self.headers.get("Origin")
+        if origin and origin.split("://")[-1] != self.headers.get("Host"):
+            return False
+        return True
+
+    def do_POST(self):
+        if not self.same_origin():
+            self.send_json(403, {"error": "forbidden"})
+            return
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+            body = json.loads(self.rfile.read(min(length, 65536)) or b"{}")
+        except ValueError:
+            self.send_json(400, {"error": "invalid request"})
+            return
+        if not isinstance(body, dict):
+            self.send_json(400, {"error": "invalid request"})
+            return
+
+        if self.path == "/api/settings":
+            settings = load_settings()
+            api_key = str(body.get("api_key", "")).strip()
+            if api_key:
+                settings["api_key"] = api_key
+            if body.get("refresh_time") in REFRESH_TIMES:
+                settings["refresh_time"] = body["refresh_time"]
+            settings["enable_metadata"] = bool(body.get("enable_metadata"))
+            settings["raw_mode"] = bool(body.get("raw_mode"))
+            write_json(SETTINGS_FILE, settings)
+            log("Settings saved.")
+            wake.set()
+            self.send_json(200, {"ok": True})
+        elif self.path == "/api/adopt":
+            try:
+                adopt_mount_path()
+            except OSError as error:
+                self.send_json(500, {"error": str(error)})
+                return
+            log("The existing torbox folder was accepted from the setup page.")
+            wake.set()
+            self.send_json(200, {"ok": True})
+        else:
+            self.send_json(404, {"error": "not found"})
+
+
+def main():
+    os.makedirs(DATA_DIR, exist_ok=True)
+    server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
+    server.daemon_threads = True
+
+    def shutdown(_signal, _frame):
+        stopping.set()
+        wake.set()
+
+    signal.signal(signal.SIGTERM, shutdown)
+    signal.signal(signal.SIGINT, shutdown)
+
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    log("Setup page listening on port " + str(PORT) + ".")
+    supervise()
+    server.shutdown()
+
+
+if __name__ == "__main__":
+    main()

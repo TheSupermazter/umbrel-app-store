@@ -1,0 +1,32 @@
+version: "3.7"
+
+services:
+  app_proxy:
+    environment:
+      # Format: <app-id>_<docker-service-name>_1
+      APP_HOST: thomas-torbox-media-center_server_1
+      APP_PORT: 8080
+
+  server:
+    image: anonymoussystems/torbox-media-center:2.0.0@sha256:0e762842d8605dd44beac0c8f752795b9c82782fa03c937d3e50166b9ce8592f
+    # Run as the umbrel user so the library files belong to it.
+    user: "1000:1000"
+    init: true
+    restart: on-failure
+    stop_grace_period: 30s
+    environment:
+      TZ: Europe/Amsterdam
+      # The image has no home directory for this user; git needs one for the
+      # media center's update check.
+      HOME: /tmp
+      PYTHONUNBUFFERED: "1"
+    # The upstream image has no web UI and takes the API key from the
+    # environment. The launcher serves the setup page on port 8080, reads the
+    # key from /data and runs the media center with it.
+    entrypoint: ["python", "/launcher.py"]
+    volumes:
+      - ${APP_DATA_DIR}/data:/data
+      # Rendered from launcher.py.template on install, start and update.
+      - ${APP_DATA_DIR}/launcher.py:/launcher.py:ro
+      # The library is written to the "torbox" subfolder of this folder.
+      - ${UMBREL_ROOT}/data/storage/downloads:/library
