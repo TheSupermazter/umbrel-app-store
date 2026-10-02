@@ -8,13 +8,13 @@
   :root {
     --bg: #f5f6f8; --panel: #ffffff; --line: #e1e4ea; --text: #1a1d23; --muted: #68707f;
     --accent: #2f6fed; --accent-text: #ffffff; --hover: #f0f3f9; --ok: #17834a; --bad: #c0352b;
-    --warn: #a86400; --track: #e6e9ef; --torbox: #0a7d6c; --rd: #7a4bc4;
+    --warn: #a86400; --track: #e6e9ef; --torbox: #0a7d6c; --rd: #7a4bc4; --folder: #c2306f;
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #101216; --panel: #181b21; --line: #2a2f39; --text: #e8eaee; --muted: #949cab;
       --accent: #5b8ff5; --accent-text: #0c0e12; --hover: #1f232b; --ok: #4cc38a; --bad: #f0766c;
-      --warn: #e0a84a; --track: #2a2f39; --torbox: #45c4b0; --rd: #b08cf0;
+      --warn: #e0a84a; --track: #2a2f39; --torbox: #45c4b0; --rd: #b08cf0; --folder: #f27bb4;
     }
   }
   * { box-sizing: border-box; }
@@ -67,7 +67,7 @@
   .tag.warn { color: var(--warn); border-color: currentColor; }
   .tag.torbox { color: var(--torbox); border-color: currentColor; }
   .tag.realdebrid { color: var(--rd); border-color: currentColor; }
-  .tag.folder { color: var(--text); }
+  .tag.folder { color: var(--folder); border-color: currentColor; }
   .check { color: var(--ok); font-weight: 700; white-space: nowrap; font-size: 12.5px; }
   .files { background: var(--bg); border-top: 1px solid var(--line); }
   .files .row { padding: 5px 16px 5px 44px; font-size: 13px; }
