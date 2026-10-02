@@ -20,6 +20,7 @@ services:
       TZ: Europe/Amsterdam
       PORT: "8765"
       DOWNLOAD_ROOT: /downloads
+      ROOT_LABEL: NordFlix
       DATA_DIR: /data
       HOME: /tmp
     volumes:
