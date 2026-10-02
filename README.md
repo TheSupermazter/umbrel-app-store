@@ -29,3 +29,28 @@ drive in the background.
   Not meant to be exposed publicly.
 - **Updating:** change the image tag and digest in
   `thomas-openlist/docker-compose.yml` and `version` in `umbrel-app.yml`.
+
+### TorBox Media Center (`thomas-torbox-media-center`)
+
+[TorBox Media Center](https://github.com/TorBox-App/torbox-media-center) 2.0.0.
+It turns the video files in a TorBox account into a library of `.strm` link
+files that Jellyfin and Emby stream straight from TorBox.
+
+- **No credentials in this repository.** The TorBox API key is entered on the
+  app's setup page and stays in the app's data folder on the device. The media
+  center prints the key when it starts; the launcher hides it in the logs.
+- **Setup page:** upstream has no web UI, so `launcher.py.template` adds one. It
+  takes the API key and settings, shows the status and log, and runs the media
+  center. It sits behind the Umbrel login and has no login of its own.
+- **Library location:** a `torbox` folder inside the folder selected for the app
+  (Downloads by default). In Jellyfin on Umbrel that is `/downloads/torbox/movies`
+  and `/downloads/torbox/series`.
+- **The `torbox` folder is emptied on every start.** That is how the media center
+  works. The launcher only starts it when the folder is new, was used by the app
+  before, or contains nothing but `.strm` files; otherwise the setup page asks first.
+- **`.strm` only.** The FUSE method (needed for Plex) is not packaged, because it
+  needs extra privileges and a shared mount on the host.
+- **Updating:** change the image tag and digest in
+  `thomas-torbox-media-center/docker-compose.yml`, `version` in `umbrel-app.yml`
+  and the version in `USER_AGENT` in `launcher.py.template`. The template must
+  not contain dollar signs, because Umbrel renders it with `envsubst`.
