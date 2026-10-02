@@ -1,0 +1,49 @@
+manifestVersion: 1.1
+id: thomas-debrid-fetch
+# App data only holds the settings, the download queue and the aria2 program.
+storage:
+  dataRoot: data
+folderAccess:
+  - id: downloads
+    name: Downloads
+    note: Folder that downloads are written to and that Local files shows, e.g. External/PS4HDD/Nordflix. Available inside the app at /downloads.
+    mounts:
+      - service: server
+        targetPath: /downloads
+        readOnly: false
+category: files
+name: Debrid Fetch
+version: "2.0.0"
+tagline: Pick files from TorBox or Real-Debrid and download them to your own drive
+icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/torbox.png
+description: >-
+  Debrid Fetch lists everything in your TorBox or Real-Debrid account. Tick the
+  files you want, choose a folder and press Download; the files are pulled
+  straight from the debrid service onto your drive with aria2, several
+  connections per file. Downloads keep running after you close the browser.
+
+
+  Files that are already on your drive get a checkmark in the list. The Local
+  files tab shows the download folder, where you can rename, move and delete.
+  "Removed from debrid" lists files that are still on your drive although their
+  download was removed from your debrid account, so you can delete them too.
+
+
+  Open Settings and enter your TorBox API key or Real-Debrid API token. Keys
+  are stored only on your Umbrel. On first start the app downloads a static
+  aria2 build from GitHub and checks it against a pinned checksum.
+releaseNotes: >-
+  aria2 downloads, Local files tab, checkmarks for files on your drive and the
+  Removed from debrid list.
+developer: Thomas Norden
+website: https://github.com/TheSupermazter/umbrel-app-store
+submitter: Thomas Norden
+submission: https://github.com/TheSupermazter/umbrel-app-store
+repo: https://github.com/TheSupermazter/umbrel-app-store
+support: https://github.com/TheSupermazter/umbrel-app-store/issues
+gallery: []
+dependencies: []
+port: 8766
+path: ""
+defaultUsername: ""
+defaultPassword: ""
