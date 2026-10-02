@@ -1,0 +1,25 @@
+version: "3.7"
+
+services:
+  app_proxy:
+    environment:
+      # Format: <app-id>_<docker-service-name>_1
+      APP_HOST: thomas-rdt-client_server_1
+      APP_PORT: 6500
+
+  server:
+    image: rogerfar/rdtclient:2.0.142@sha256:647db1c0040b1b28bb0e874fd2b58e315c52004c0c27d24e0e0b9be7f6d92469
+    restart: on-failure
+    stop_grace_period: 1m
+    environment:
+      TZ: Europe/Amsterdam
+      # The image starts as root and drops to this user, so downloaded files
+      # belong to the umbrel user.
+      PUID: "1000"
+      PGID: "1000"
+      # Without this the image runs chown -R on /data at every start, which
+      # would walk through everything in the download folder.
+      SKIP_CHOWN: "true"
+    volumes:
+      - ${APP_DATA_DIR}/data/db:/data/db
+      - ${UMBREL_ROOT}/data/storage/downloads:/data/downloads
