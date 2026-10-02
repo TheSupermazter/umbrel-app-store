@@ -27,7 +27,7 @@ or updated.
 
 ### Debrid Fetch (`thomas-debrid-fetch`)
 
-A small web app (one Python script in `thomas-debrid-fetch/app`, run by the stock
+A small web app (`server.py.template` and `index.html.template`, run by the stock
 `python:alpine` image) that lists a TorBox or Real-Debrid library, downloads the
 ticked files to a local folder with aria2, and manages that folder.
 
@@ -43,5 +43,9 @@ ticked files to a local folder with aria2, and manages that folder.
 - **Checkmarks and "Removed from debrid":** based on `manifest.json` in the data
   folder, which records which debrid item each downloaded file came from. Files
   already on the drive are matched by name and size.
-- **Updating:** change `app/server.py` / `app/index.html` and bump `version` in
-  `umbrel-app.yml`.
+- **Updating:** edit `server.py.template` / `index.html.template` and bump
+  `version` in `umbrel-app.yml`. An Umbrel update only copies top-level
+  `docker-compose.yml`, `*.template`, `exports.sh`, `torrc` and `umbrel-app.yml`
+  files, which is why the code is shipped as templates. Umbrel runs templates
+  through `envsubst`, so they must not contain `$` followed by `{` or a letter
+  (the page uses string concatenation instead of JavaScript `${...}` templates).

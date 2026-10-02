@@ -13,7 +13,7 @@ folderAccess:
         readOnly: false
 category: files
 name: Debrid Fetch
-version: "2.0.1"
+version: "2.0.2"
 tagline: Pick files from TorBox or Real-Debrid and download them to your own drive
 icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/torbox.png
 description: >-
@@ -33,8 +33,10 @@ description: >-
   are stored only on your Umbrel. On first start the app downloads a static
   aria2 build from GitHub and checks it against a pinned checksum.
 releaseNotes: >-
-  Local files always opens at the top of the download folder, which is shown
-  as NordFlix.
+  The "to" folder is now a dropdown of the top folders, starting on TorBox or
+  Real-Debrid. Downloads into another folder show that folder as a tag. Local
+  files opens at the top of the download folder, shown as NordFlix (this part
+  of 2.0.1 did not reach installed apps, which this version fixes).
 developer: Thomas Norden
 website: https://github.com/TheSupermazter/umbrel-app-store
 submitter: Thomas Norden
