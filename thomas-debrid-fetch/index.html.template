@@ -8,13 +8,13 @@
   :root {
     --bg: #f5f6f8; --panel: #ffffff; --line: #e1e4ea; --text: #1a1d23; --muted: #68707f;
     --accent: #2f6fed; --accent-text: #ffffff; --hover: #f0f3f9; --ok: #17834a; --bad: #c0352b;
-    --warn: #a86400; --track: #e6e9ef; --torbox: #0a7d6c; --rd: #7a4bc4;
+    --warn: #a86400; --track: #e6e9ef; --torbox: #0a7d6c; --rd: #7a4bc4; --folder: #c2306f;
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #101216; --panel: #181b21; --line: #2a2f39; --text: #e8eaee; --muted: #949cab;
       --accent: #5b8ff5; --accent-text: #0c0e12; --hover: #1f232b; --ok: #4cc38a; --bad: #f0766c;
-      --warn: #e0a84a; --track: #2a2f39; --torbox: #45c4b0; --rd: #b08cf0;
+      --warn: #e0a84a; --track: #2a2f39; --torbox: #45c4b0; --rd: #b08cf0; --folder: #f27bb4;
     }
   }
   * { box-sizing: border-box; }
@@ -67,6 +67,7 @@
   .tag.warn { color: var(--warn); border-color: currentColor; }
   .tag.torbox { color: var(--torbox); border-color: currentColor; }
   .tag.realdebrid { color: var(--rd); border-color: currentColor; }
+  .tag.folder { color: var(--folder); border-color: currentColor; }
   .check { color: var(--ok); font-weight: 700; white-space: nowrap; font-size: 12.5px; }
   .files { background: var(--bg); border-top: 1px solid var(--line); }
   .files .row { padding: 5px 16px 5px 44px; font-size: 13px; }
@@ -78,7 +79,7 @@
   footer .sel { font-variant-numeric: tabular-nums; }
   footer .grow { flex: 1; }
   footer .dest { display: flex; align-items: center; gap: 6px; flex: 1 1 240px; min-width: 0; }
-  footer .dest button { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+  footer .dest select { min-width: 0; max-width: 100%; }
 
   .job { padding: 9px 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
   .job .top { display: flex; gap: 8px; align-items: baseline; }
@@ -153,7 +154,7 @@
       <span class="sel" id="selection">Nothing selected</span>
       <span class="dest">
         <span>to</span>
-        <button id="pickDest" title="Choose folder"></button>
+        <select id="destSelect" aria-label="Download to folder"></select>
       </span>
       <button class="primary" id="download" disabled>Download</button>
     </footer>
@@ -268,7 +269,7 @@ async function api(path, body) {
   let res, data;
   try { res = await fetch(path, opts); } catch { throw new Error('Server not reachable'); }
   try { data = await res.json(); } catch { data = {}; }
-  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  if (!res.ok) throw new Error(data.error || ('Request failed (' + (res.status) + ')'));
   return data;
 }
 
@@ -277,13 +278,13 @@ function size(n) {
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   let i = 0;
   while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
-  return `${n.toFixed(n >= 100 || i < 2 ? 0 : n >= 10 ? 1 : 2)} ${units[i]}`;
+  return ('' + (n.toFixed(n >= 100 || i < 2 ? 0 : n >= 10 ? 1 : 2)) + ' ' + (units[i]));
 }
 function day(s) {
   const d = new Date(typeof s === 'number' ? s * 1000 : s);
   return isNaN(d) ? '' : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 }
-const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+const plural = (n, word) => ('' + (n) + ' ' + (word) + (n === 1 ? '' : 's'));
 function el(tag, props = {}, ...children) {
   const node = Object.assign(document.createElement(tag), props);
   node.append(...children.filter(c => c != null));
@@ -297,19 +298,33 @@ function toast(text) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => $('toast').classList.remove('show'), 3500);
 }
-const dest = () => store.get('dest:' + view, DEFAULT_DEST[view]);
+const dest = () => $('destSelect').value || DEFAULT_DEST[view];
+// Folders that need no tag in the download list: they already say where it came from.
+const SERVICE_FOLDERS = Object.values(DEFAULT_DEST);
+
+// The "to" dropdown lists the folders at the top of the download folder.
+// It starts on the service's own folder every time.
+async function loadDestinations() {
+  const fallback = DEFAULT_DEST[view];
+  let folders = [];
+  try { folders = (await api('/api/folders?path=')).folders; } catch {}
+  if (!folders.includes(fallback)) folders.push(fallback);
+  folders.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  $('destSelect').replaceChildren(...folders.map(f => el('option', { value: f, textContent: '/' + f })));
+  $('destSelect').value = fallback;
+}
 
 // ---------------------------------------------------------------- views
 
 async function loadState() {
   state = await api('/api/state');
-  $('space').textContent = state.total ? `${size(state.free)} free` : '';
+  $('space').textContent = state.total ? ('' + (size(state.free)) + ' free') : '';
   $('concurrency').value = state.concurrency;
   $('connections').value = state.connections;
   $('torboxHint').textContent = state.providers.torbox ? 'A key is saved.' : 'No key saved yet.';
   $('rdHint').textContent = state.providers.realdebrid ? 'A token is saved.' : 'No token saved yet.';
-  $('engineHint').textContent = `Downloading with ${state.engine}` +
-    (state.engine_note ? ` (aria2 not available: ${state.engine_note})` : '') + '.';
+  $('engineHint').textContent = ('Downloading with ' + (state.engine)) +
+    (state.engine_note ? (' (aria2 not available: ' + (state.engine_note) + ')') : '') + '.';
 }
 
 function showView(refresh) {
@@ -334,13 +349,13 @@ $('sort').onchange = () => render();
 // ---------------------------------------------------------------- debrid library
 
 async function loadItems(refresh) {
-  $('pickDest').textContent = '/' + dest();
+  loadDestinations();
   selected.clear(); expanded.clear(); items = [];
   updateSelection();
   const box = $('items');
   if (!state.providers[view]) {
     box.replaceChildren(el('div', { className: 'empty' },
-      `No ${view === 'torbox' ? 'TorBox API key' : 'Real-Debrid API token'} saved yet. `,
+      ('No ' + (view === 'torbox' ? 'TorBox API key' : 'Real-Debrid API token') + ' saved yet. '),
       el('button', { className: 'link', textContent: 'Open Settings', onclick: openSettings })));
     $('count').textContent = '';
     return;
@@ -349,7 +364,7 @@ async function loadItems(refresh) {
   $('refresh').disabled = true;
   const asked = view;
   try {
-    const data = await api(`/api/items?provider=${view}${refresh ? '&refresh=1' : ''}`);
+    const data = await api(('/api/items?provider=' + (view) + (refresh ? '&refresh=1' : '')));
     if (asked !== view) return;
     items = data.items;
     render();
@@ -366,7 +381,7 @@ async function refreshMarks() {
   if (!state.providers[view] || !items.length) return;
   const asked = view;
   try {
-    const fresh = (await api(`/api/items?provider=${view}`)).items;
+    const fresh = (await api(('/api/items?provider=' + (view)))).items;
     if (asked !== view) return;
     const old = new Map(items.map(i => [i.id, i]));
     await Promise.all(fresh.map(async item => {
@@ -417,8 +432,8 @@ function localMark(item) {
   const have = item.files ? item.files.filter(f => f.local).length : item.local_files;
   if (!have) return null;
   const all = item.files && have === item.files.length;
-  const text = all ? '✓' : item.files ? `✓ ${have}/${item.files.length}` : `✓ ${have}`;
-  const title = all ? 'On your drive' : `${plural(have, 'file')} on your drive`;
+  const text = all ? '✓' : item.files ? ('✓ ' + (have) + '/' + (item.files.length)) : ('✓ ' + (have));
+  const title = all ? 'On your drive' : ('' + (plural(have, 'file')) + ' on your drive');
   return el('span', { className: 'check', textContent: text, title });
 }
 
@@ -460,7 +475,7 @@ function renderItem(item) {
 async function ensureFiles(item) {
   if (item.files) return true;
   try {
-    const q = `provider=${view}&id=${encodeURIComponent(item.id)}&name=${encodeURIComponent(item.name)}`;
+    const q = ('provider=' + (view) + '&id=' + (encodeURIComponent(item.id)) + '&name=' + (encodeURIComponent(item.name)));
     item.files = (await api('/api/files?' + q)).files;
     item.loadError = '';
     return true;
@@ -490,7 +505,7 @@ function updateSelection() {
   let bytes = 0;
   for (const { file } of selected.values()) bytes += file.size || 0;
   const n = selected.size;
-  $('selection').textContent = n ? `${plural(n, 'file')} selected${bytes ? ' · ' + size(bytes) : ''}` : 'Nothing selected';
+  $('selection').textContent = n ? ('' + (plural(n, 'file')) + ' selected' + (bytes ? ' · ' + size(bytes) : '')) : 'Nothing selected';
   $('download').disabled = !n;
   const ready = visible().filter(i => i.ready);
   const states = ready.map(itemSelection);
@@ -522,7 +537,7 @@ $('download').onclick = async () => {
   $('download').disabled = true;
   try {
     const res = await api('/api/download', { provider: view, dest: dest(), items: [...byItem.values()] });
-    toast(res.queued ? `${plural(res.queued, 'file')} added to the queue` : 'Those files are already in the queue');
+    toast(res.queued ? ('' + (plural(res.queued, 'file')) + ' added to the queue') : 'Those files are already in the queue');
     selected.clear();
     render();
     pollJobs();
@@ -580,7 +595,7 @@ function renderLocal() {
 function updateLocalSelection() {
   const n = localSel.size;
   const bytes = localEntries.filter(e => localSel.has(e.name)).reduce((s, e) => s + e.size, 0);
-  $('localSelection').textContent = n ? `${n} selected${bytes ? ' · ' + size(bytes) : ''}` : 'Nothing selected';
+  $('localSelection').textContent = n ? ('' + (n) + ' selected' + (bytes ? ' · ' + size(bytes) : '')) : 'Nothing selected';
   $('localRename').disabled = n !== 1;
   $('localMove').disabled = $('localDelete').disabled = !n;
   const list = localVisible();
@@ -617,16 +632,16 @@ $('localRename').onclick = () => {
 };
 $('localMove').onclick = () => {
   const paths = [...localSel].map(localFull);
-  pickFolder(localPath, `Move ${plural(paths.length, 'item')} to`, 'Move here', target =>
+  pickFolder(localPath, ('Move ' + (plural(paths.length, 'item')) + ' to'), 'Move here', target =>
     localAction('/api/local/move', { paths, dest: target }, 'Moved'));
 };
 $('localDelete').onclick = () => {
   const chosen = localEntries.filter(e => localSel.has(e.name));
   const folders = chosen.filter(e => e.dir);
-  const what = chosen.length === 1 ? `"${chosen[0].name}"` : plural(chosen.length, 'item');
-  const extra = folders.length ? `\n\nThis includes ${plural(folders.length, 'folder')} with everything inside (${
-    plural(folders.reduce((s, e) => s + e.count, 0), 'file')}).` : '';
-  if (confirm(`Delete ${what} from the drive? This cannot be undone.${extra}`))
+  const what = chosen.length === 1 ? ('"' + (chosen[0].name) + '"') : plural(chosen.length, 'item');
+  const extra = folders.length ? ('\n\nThis includes ' + (plural(folders.length, 'folder')) + ' with everything inside (' + (
+    plural(folders.reduce((s, e) => s + e.count, 0), 'file')) + ').') : '';
+  if (confirm(('Delete ' + (what) + ' from the drive? This cannot be undone.' + (extra))))
     localAction('/api/local/delete', { paths: chosen.map(e => localFull(e.name)) }, 'Deleted');
 };
 
@@ -660,7 +675,7 @@ function updateOrphanSelection() {
   const n = orphanSel.size;
   const bytes = orphanFiles.filter(f => orphanSel.has(f.path)).reduce((s, f) => s + f.size, 0);
   $('deleteOrphans').disabled = !n;
-  $('deleteOrphans').textContent = n ? `Delete ${plural(n, 'file')} from drive${bytes ? ' (' + size(bytes) + ')' : ''}` : 'Delete from drive';
+  $('deleteOrphans').textContent = n ? ('Delete ' + (plural(n, 'file')) + ' from drive' + (bytes ? ' (' + size(bytes) + ')' : '')) : 'Delete from drive';
   $('orphanAll').checked = orphanFiles.length > 0 && n === orphanFiles.length;
 }
 
@@ -693,10 +708,10 @@ $('orphanAll').onchange = e => {
 };
 $('deleteOrphans').onclick = async () => {
   const paths = [...orphanSel];
-  if (!confirm(`Delete ${plural(paths.length, 'file')} from the drive? This cannot be undone.`)) return;
+  if (!confirm(('Delete ' + (plural(paths.length, 'file')) + ' from the drive? This cannot be undone.'))) return;
   try {
     const res = await api('/api/local/delete', { paths, prune: true });
-    toast(`${plural(res.deleted, 'file')} deleted`);
+    toast(('' + (plural(res.deleted, 'file')) + ' deleted'));
   } catch (e) {
     toast(e.message);
   }
@@ -715,21 +730,28 @@ const STATUS = { queued: 'Waiting', downloading: 'Downloading', done: 'Done', er
 function eta(job) {
   if (!job.speed || !job.size) return '';
   const s = Math.round((job.size - job.done) / job.speed);
-  if (s < 60) return `${s}s left`;
-  if (s < 3600) return `${Math.round(s / 60)} min left`;
-  return `${Math.floor(s / 3600)}h ${Math.round(s % 3600 / 60)}m left`;
+  if (s < 60) return ('' + (s) + 's left');
+  if (s < 3600) return ('' + (Math.round(s / 60)) + ' min left');
+  return ('' + (Math.floor(s / 3600)) + 'h ' + (Math.round(s % 3600 / 60)) + 'm left');
+}
+
+// Tag with the top folder the file went to (e.g. a person's folder), unless it is a service folder.
+function folderTag(path) {
+  const parts = path.split('/');
+  if (parts.length < 2 || SERVICE_FOLDERS.includes(parts[0])) return null;
+  return el('span', { className: 'tag folder', textContent: parts[0] });
 }
 
 function renderJob(job) {
   const pct = job.size ? Math.min(100, job.done / job.size * 100) : 0;
   let sub = STATUS[job.status];
   if (job.status === 'downloading') {
-    sub = [`${size(job.done) || '0 B'} of ${size(job.size) || '?'}`, job.speed ? size(job.speed) + '/s' : '', eta(job)]
+    sub = [('' + (size(job.done) || '0 B') + ' of ' + (size(job.size) || '?')), job.speed ? size(job.speed) + '/s' : '', eta(job)]
       .filter(Boolean).join(' · ');
     if (job.error) sub += ' · ' + job.error;
   } else if (job.status === 'error') sub = 'Failed: ' + job.error;
-  else if (job.status === 'done') sub = `Done · ${size(job.size || job.done)}`;
-  else if (job.status === 'queued') sub = `Waiting · ${size(job.size)}`;
+  else if (job.status === 'done') sub = ('Done · ' + (size(job.size || job.done)));
+  else if (job.status === 'queued') sub = ('Waiting · ' + (size(job.size)));
 
   const act = (label, action) => el('button', { className: 'link', textContent: label,
     onclick: async () => { try { await api('/api/jobs/action', { action, id: job.id }); } catch (e) { toast(e.message); } pollJobs(); } });
@@ -740,7 +762,7 @@ function renderJob(job) {
       active ? act('Cancel', 'cancel') : null,
       job.status === 'error' || job.status === 'cancelled' ? act('Retry', 'retry') : null,
       !active ? act('Remove', 'remove') : null),
-    el('div', { className: 'sub' }, serviceTag(job.provider), el('span', { className: 'text', textContent: sub })));
+    el('div', { className: 'sub' }, serviceTag(job.provider), folderTag(job.path), el('span', { className: 'text', textContent: sub })));
   if (job.status === 'downloading') {
     const bar = el('div');
     bar.style.width = pct + '%';
@@ -763,10 +785,10 @@ async function pollJobs() {
     busy = running.length + waiting > 0;
     const speed = running.reduce((s, j) => s + j.speed, 0);
     $('queueSummary').textContent = busy
-      ? `${running.length} active, ${waiting} waiting${speed ? ' · ' + size(speed) + '/s' : ''}` : '';
+      ? ('' + (running.length) + ' active, ' + (waiting) + ' waiting' + (speed ? ' · ' + size(speed) + '/s' : '')) : '';
     $('cancelAll').hidden = !busy;
     $('clearDone').hidden = !jobs.some(j => j.status !== 'queued' && j.status !== 'downloading');
-    document.title = busy && speed ? `${size(speed)}/s · Debrid Fetch` : 'Debrid Fetch';
+    document.title = busy && speed ? ('' + (size(speed)) + '/s · Debrid Fetch') : 'Debrid Fetch';
     // A finished download changes what is on the drive.
     const finished = jobs.filter(j => j.status === 'done').map(j => j.id).join();
     if (doneCount !== null && finished !== doneCount) { refreshMarks(); loadState().catch(() => {}); }
@@ -834,10 +856,6 @@ async function browse(path) {
     $('folderMsg').textContent = e.message;
   }
 }
-$('pickDest').onclick = () => pickFolder(dest(), 'Download to', 'Use this folder', target => {
-  store.set('dest:' + view, target);
-  $('pickDest').textContent = '/' + target;
-});
 $('cancelFolder').onclick = () => $('folders').close();
 $('useFolder').onclick = () => {
   $('folders').close();
@@ -865,7 +883,7 @@ $('makeFolder').onclick = async () => {
       if (state.providers[other]) view = other;
     }
     await showView(false);
-    if (!state.root_ok) toast(`Download folder ${state.root} is not writable`);
+    if (!state.root_ok) toast(('Download folder ' + (state.root) + ' is not writable'));
     loadOrphanCount();
   } catch (e) {
     $('items').replaceChildren(el('div', { className: 'empty error', textContent: e.message }));
