@@ -1,0 +1,37 @@
+manifestVersion: 1.1
+id: thomas-matter-server
+# App data is the Matter fabric (keys and paired devices). Keep it backed up.
+storage:
+  dataRoot: data
+category: automation
+name: Matter Server (matter.js)
+version: "1.4.0"
+tagline: The matter.js Matter controller for Home Assistant
+icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/matter.png
+description: >-
+  The matter.js Matter Server, a drop-in replacement for the Python Matter
+  Server, used by Home Assistant's Matter integration at ws://localhost:5580/ws.
+
+
+  It only listens on this machine, because its WebSocket API has no login, so
+  the tile on the dashboard does not open a page from other devices. For the
+  built-in dashboard, tunnel the port, for example
+  ssh -L 5580:127.0.0.1:5580 umbrel@<this Umbrel> and open http://localhost:5580.
+
+
+  The server waits until its data folder holds a Matter store marked with a
+  .ready file, so it never starts an empty fabric by accident.
+releaseNotes: >-
+  First version: matter.js server 1.4.0.
+developer: matter.js
+website: https://github.com/matter-js/matterjs-server
+submitter: Thomas Norden
+submission: https://github.com/TheSupermazter/umbrel-app-store
+repo: https://github.com/matter-js/matterjs-server
+support: https://github.com/matter-js/matterjs-server/issues
+gallery: []
+dependencies: []
+port: 5580
+path: ""
+defaultUsername: ""
+defaultPassword: ""

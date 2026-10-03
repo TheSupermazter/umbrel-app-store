@@ -23,6 +23,25 @@ or updated.
 > from it otherwise. Once the app is installed and works, remind him to set it
 > back to **private**.
 
+## Keeping apps up to date
+
+> **For Claude: whenever Thomas asks you to add or update an app here, first
+> check every app below for a newer stable upstream version** (sources in the
+> table), tell him what you found, and offer to include those updates in the
+> same pull request. The repository then only needs to be public once, and he
+> can update everything in Umbrel in one go. Skip pre-releases, alphas, betas
+> and release candidates unless he asks for them.
+
+| App | Upstream to check | What to change for an update |
+|---|---|---|
+| Caddy (`thomas-caddy`) | [caddyserver/caddy releases](https://github.com/caddyserver/caddy/releases), image `caddy:<version>-alpine` on Docker Hub | image tag and digest in `docker-compose.yml`, `version` in `umbrel-app.yml` |
+| Matter Server (`thomas-matter-server`) | [matter-js/matterjs-server releases](https://github.com/matter-js/matterjs-server/releases), image `ghcr.io/matter-js/matterjs-server:<version>` | image tag and digest in `docker-compose.yml`, `version` in `umbrel-app.yml`. Read the release notes first: never downgrade, the store format only moves forward |
+| Debrid Fetch (`thomas-debrid-fetch`) | Our own code. Its pins: `python:3.13.x-alpine` on Docker Hub, and the aria2 build from [abcfy2/aria2-static-build](https://github.com/abcfy2/aria2-static-build/releases) | image tag and digest in `docker-compose.yml`; aria2 URLs and SHA-256 in `server.py.template`; bump `version` in `umbrel-app.yml` |
+
+Pin images as `name:<version>@sha256:<index digest>`: the multi-arch index digest
+from the registry, not a single-platform one. After merging, Thomas makes the
+repository public, presses Update for each app in Umbrel, and sets it private again.
+
 ## Apps
 
 ### Caddy (`thomas-caddy`)
@@ -40,6 +59,26 @@ Jellyfin at `https://stream.thomasnorden.nl`, and nothing else.
   (no `$` allowed, see Debrid Fetch). Change it, bump `version` and update the
   app. Requests for names not in the file are refused.
 - **Dashboard tile:** only a status page on port 8790, behind the Umbrel login.
+
+### Matter Server (`thomas-matter-server`)
+
+The [matter.js Matter Server](https://github.com/matter-js/matterjs-server)
+1.4.0, the drop-in replacement for the Python Matter Server that Home Assistant's
+Matter integration uses at `ws://localhost:5580/ws`. Replaces the copy that ran
+in Portainer's docker-in-docker; Umbrel's own Matter Server app is still the
+Python one.
+
+- **Networking:** host network (needed for mDNS and IPv6), listening on
+  `127.0.0.1:5580` only, because the WebSocket API has no login. The dashboard
+  tile therefore only opens through a tunnel:
+  `ssh -L 5580:127.0.0.1:5580 umbrel@<umbrel>`, then `http://localhost:5580`.
+- **Data:** the Matter fabric (keys and paired devices) in the app's data
+  folder, owned by UID 1000. The container waits until `/data/.ready` exists, so
+  it never creates an empty fabric by accident. On a fresh setup without data
+  to migrate, create that file yourself.
+- **Migration from Portainer:** `~/matter-migrate.sh` on the Umbrel (`check`,
+  then `run`, with sudo) stops the old container, backs it up to the home
+  folder, copies and verifies the data and creates `.ready`.
 
 ### Debrid Fetch (`thomas-debrid-fetch`)
 

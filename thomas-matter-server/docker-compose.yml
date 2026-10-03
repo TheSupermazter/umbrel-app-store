@@ -1,0 +1,29 @@
+version: "3.7"
+
+services:
+  server:
+    image: ghcr.io/matter-js/matterjs-server:1.4.0@sha256:54232d0d3e7dff5a54759469d2753399270412b4c30c55b31750a4595e4cb236
+    # Host networking is required for mDNS and IPv6 device discovery.
+    network_mode: host
+    restart: on-failure
+    stop_grace_period: 1m
+    environment:
+      TZ: Europe/Amsterdam
+      STORAGE_PATH: /data
+      PORT: "5580"
+      # Only Home Assistant on this machine talks to it (ws://localhost:5580/ws).
+      # The WebSocket API has no login, so it is not offered to the network.
+      LISTEN_ADDRESS: 127.0.0.1
+      LOG_LEVEL: info
+    # Never start with an empty store, which would create a new fabric: wait
+    # until the Matter data is in place and marked with /data/.ready.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        until [ -e /data/.ready ]; do
+          echo "Waiting for Matter data in /data (create /data/.ready when it is in place)"
+          sleep 10
+        done
+        exec node --enable-source-maps /app/node_modules/matter-server/dist/esm/MatterServer.js
+    volumes:
+      - ${APP_DATA_DIR}/data:/data
