@@ -36,7 +36,7 @@ or updated.
 |---|---|---|
 | Caddy (`thomas-caddy`) | [caddyserver/caddy releases](https://github.com/caddyserver/caddy/releases), image `caddy:<version>-alpine` on Docker Hub | image tag and digest in `docker-compose.yml`, `version` in `umbrel-app.yml` |
 | Matter Server (`thomas-matter-server`) | [matter-js/matterjs-server releases](https://github.com/matter-js/matterjs-server/releases), image `ghcr.io/matter-js/matterjs-server:<version>` | image tag and digest in `docker-compose.yml`, `version` in `umbrel-app.yml`. Read the release notes first: never downgrade, the store format only moves forward |
-| File Share (`thomas-file-share`) | [filebrowser/filebrowser releases](https://github.com/filebrowser/filebrowser/releases), image `filebrowser/filebrowser:v<version>` | image tag and digest in `docker-compose.yml`, `version` in `umbrel-app.yml` |
+| File Share (`thomas-file-share`) | [gtsteffaniak/filebrowser releases](https://github.com/gtsteffaniak/filebrowser/releases): only `-stable` tags; image `gtstef/filebrowser:<version>-stable-slim` | image tag and digest in `docker-compose.yml`, `version` in `umbrel-app.yml`; read the release notes for config changes (2.x needs a config migration) |
 | Debrid Fetch (`thomas-debrid-fetch`) | Our own code. Its pins: `python:3.13.x-alpine` on Docker Hub, and the aria2 build from [abcfy2/aria2-static-build](https://github.com/abcfy2/aria2-static-build/releases) | image tag and digest in `docker-compose.yml`; aria2 URLs and SHA-256 in `server.py.template`; bump `version` in `umbrel-app.yml` |
 
 Pin images as `name:<version>@sha256:<index digest>`: the multi-arch index digest
@@ -85,17 +85,23 @@ Python one.
 
 ### File Share (`thomas-file-share`)
 
-[File Browser](https://filebrowser.org) 2.63.23 as a download portal at
-`https://download.thomasnorden.nl` (through Caddy), for any kind of file.
+[FileBrowser Quantum](https://github.com/gtsteffaniak/filebrowser) 1.5.6 (stable
+channel) as a download portal at `https://download.thomasnorden.nl` (through
+Caddy), for any kind of file. It replaced the original File Browser, which was
+archived on 2026-09-01 and gets no more security fixes.
 
 - **Read-only:** the shared folder (folder access, e.g. `External/PS4HDD/Nordflix`)
-  is mounted read-only at `/srv`, so nothing can be changed or deleted through
-  the app, whatever an account's permissions say.
-- **Accounts:** first start creates the database with download-only defaults for
-  new users and an `admin` account with the password Umbrel shows on the app
-  page (only on first start; change it in the app afterwards). Add friends under
-  Settings, User Management, with Scope set to their folder (e.g. `/Maud`).
-  Sign-up is off.
+  is mounted read-only at `/srv` and configured as a read-only, private source:
+  no changes, deletes or public share links.
+- **Accounts:** new accounts are download-only and get the scope
+  `/geen-toegang` (a folder that does not exist), so they see nothing until the
+  admin sets their Nordflix scope, e.g. `/Maud`. Sign-up is off; passwords need
+  12+ characters.
+- **Admin:** `admin`, password = the one Umbrel shows on the app page, applied
+  at every start (`FILEBROWSER_ADMIN_PASSWORD`). The admin also starts on
+  `/geen-toegang`; set it to `/` to browse everything.
+- **Configuration:** `config.yaml.template` (envsubst-safe). `userDefaults` sets
+  both `permissions` (read by the new-user form) and `account.permissions`.
 - **Login:** its own, not the Umbrel login, because friends reach it from the
   internet. The dashboard tile (port 8792) opens the same login.
 

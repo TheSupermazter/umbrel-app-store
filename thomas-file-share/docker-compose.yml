@@ -6,35 +6,26 @@ services:
       # Format: <app-id>_<docker-service-name>_1
       APP_HOST: thomas-file-share_server_1
       APP_PORT: 80
-      # File Browser has its own login (it is also reached from the internet
-      # through Caddy), so no second Umbrel login in front of it.
+      # FileBrowser Quantum has its own login (it is also reached from the
+      # internet through Caddy), so no second Umbrel login in front of it.
       PROXY_AUTH_ADD: "false"
 
   server:
-    image: filebrowser/filebrowser:v2.63.23@sha256:a469ea076d4a1b4b1d86a41d130f2f536cd9da996a2b1fb39c0d7635f9d89b9a
+    image: gtstef/filebrowser:1.5.6-stable-slim@sha256:2adb06e46e1bdbed38e76eb4bcb562fbce0bef0a2bdcbb17f0a2002e4844a24d
     user: "1000:1000"
     init: true
     restart: on-failure
     stop_grace_period: 30s
-    # On first start: create the database with download-only defaults for new
-    # users and an admin account with the password Umbrel shows on the app page.
-    # After that the admin manages accounts (and their own password) in the app.
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        db=/database/filebrowser.db
-        if [ ! -f "$$db" ]; then
-          filebrowser config init -d "$$db" --root /srv --address 0.0.0.0 --port 80 \
-            --perm.create=false --perm.rename=false --perm.modify=false --perm.delete=false \
-            --perm.share=false --perm.execute=false --perm.download=true --commands "" &&
-          filebrowser users add admin "$$APP_PASSWORD" --perm.admin -d "$$db" >/dev/null ||
-          { rm -f "$$db"; echo "First-time setup failed"; exit 1; }
-        fi
-        exec filebrowser -d "$$db"
     environment:
       TZ: Europe/Amsterdam
-      APP_PASSWORD: ${APP_PASSWORD}
+      # config.yaml is rendered by Umbrel from config.yaml.template.
+      FILEBROWSER_CONFIG: /app/config.yaml
+      FILEBROWSER_DATABASE: /home/filebrowser/data/database.db
+      # Applied at every start: the admin password is always the one Umbrel
+      # shows on the app page.
+      FILEBROWSER_ADMIN_PASSWORD: ${APP_PASSWORD}
     volumes:
-      - ${APP_DATA_DIR}/data:/database
-      # The shared folder, read-only: nobody can change or delete files through it.
+      - ${APP_DATA_DIR}:/app:ro
+      - ${APP_DATA_DIR}/data:/home/filebrowser/data
+      # The shared folder, read-only.
       - ${UMBREL_ROOT}/home/Downloads:/srv:ro
