@@ -72,7 +72,9 @@ class ApiError(Exception):
 # ---------------------------------------------------------------- config
 
 config_lock = threading.Lock()
-config = {"torbox_key": "", "rd_key": "", "concurrency": 2, "connections": 8}
+config = {"torbox_key": "", "rd_key": "", "concurrency": 2, "connections": 8,
+          # Umbrel puts every app on one network, where Jellyfin's server is reachable by container name.
+          "jellyfin_url": "http://jellyfin_server_1:8096", "jellyfin_key": ""}
 
 
 def load_config():
@@ -118,6 +120,68 @@ def http_json(url, token=None, data=None, timeout=45):
         raise ApiError(f"{detail or e.reason} (HTTP {e.code})") from None
     except urllib.error.URLError as e:
         raise ApiError(f"Could not reach {urllib.parse.urlsplit(url).netloc}: {e.reason}") from None
+
+
+# ---------------------------------------------------------------- jellyfin
+
+# Seconds without new changes before Jellyfin is asked to scan, so a batch of downloads gives one scan.
+JELLYFIN_DELAY = 20
+jellyfin_status = {"at": 0, "error": ""}
+jellyfin_timer = None
+jellyfin_timer_lock = threading.Lock()
+
+
+def jellyfin_call(path, method="GET", url=None, key=None):
+    base = (url or config["jellyfin_url"]).rstrip("/")
+    token = key or config["jellyfin_key"]
+    # Jellyfin 10.11+ refuses the old X-Emby-Token header unless legacy authorization is on.
+    auth = f'MediaBrowser Client="Debrid Fetch", Device="Umbrel", DeviceId="debrid-fetch", Version="2.1", Token="{token}"'
+    req = urllib.request.Request(base + path, method=method, data=b"" if method == "POST" else None,
+                                 headers={"User-Agent": USER_AGENT, "Accept": "application/json", "Authorization": auth})
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            raw = r.read()
+            return json.loads(raw) if raw else None
+    except urllib.error.HTTPError as e:
+        if e.code in (401, 403):
+            raise ApiError("Jellyfin did not accept the API key") from None
+        raise ApiError(f"Jellyfin answered HTTP {e.code}") from None
+    except (urllib.error.URLError, OSError) as e:
+        raise ApiError(f"Could not reach Jellyfin at {base}: {getattr(e, 'reason', e)}") from None
+    except ValueError:
+        raise ApiError(f"{base} did not answer like a Jellyfin server") from None
+
+
+def jellyfin_check(url, key):
+    info = jellyfin_call("/System/Info", url=url, key=key) or {}
+    if "Version" not in info:
+        raise ApiError(f"{url} did not answer like a Jellyfin server")
+    return {"name": info.get("ServerName") or "Jellyfin", "version": info["Version"]}
+
+
+def jellyfin_scan():
+    """Ask Jellyfin to scan all libraries. A full scan also picks up folders that are new."""
+    try:
+        jellyfin_call("/Library/Refresh", method="POST")
+        jellyfin_status.update(at=time.time(), error="")
+        print("Asked Jellyfin to scan its libraries", flush=True)
+    except ApiError as e:
+        jellyfin_status.update(at=time.time(), error=str(e))
+        print(f"Jellyfin scan failed: {e}", file=sys.stderr, flush=True)
+        raise
+
+
+def jellyfin_soon():
+    """Scan once things have been quiet for JELLYFIN_DELAY seconds."""
+    global jellyfin_timer
+    if not config["jellyfin_key"]:
+        return
+    with jellyfin_timer_lock:
+        if jellyfin_timer:
+            jellyfin_timer.cancel()
+        jellyfin_timer = threading.Timer(JELLYFIN_DELAY, lambda: jellyfin_scan() if config["jellyfin_key"] else None)
+        jellyfin_timer.daemon = True
+        jellyfin_timer.start()
 
 
 # ---------------------------------------------------------------- paths
@@ -795,6 +859,7 @@ def worker(index):
             job.update(status="done", speed=0, error="")
             local.record(job["rel"], job["provider"], job["item_id"], job["file_id"], job["item_name"],
                          job.get("size") or 0)
+            jellyfin_soon()
         except Cancelled:
             job.update(status="cancelled", speed=0)
             remove_partial(ROOT / job["rel"])
@@ -1070,12 +1135,20 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json({"ok": True})
             elif path == "/api/local/delete":
                 count = local_delete(body.get("paths") or [], bool(body.get("prune")))
+                jellyfin_soon()
                 self.send_json({"deleted": count})
             elif path == "/api/local/rename":
                 local_rename(body.get("path", ""), body.get("name", ""))
+                jellyfin_soon()
                 self.send_json({"ok": True})
             elif path == "/api/local/move":
                 local_move(body.get("paths") or [], body.get("dest", ""))
+                jellyfin_soon()
+                self.send_json({"ok": True})
+            elif path == "/api/jellyfin/scan":
+                if not config["jellyfin_key"]:
+                    raise ApiError("Save a Jellyfin API key first")
+                jellyfin_scan()
                 self.send_json({"ok": True})
             else:
                 self.send_json({"error": "Not found"}, 404)
@@ -1098,6 +1171,8 @@ def state():
         "providers": {name: p.configured() for name, p in PROVIDERS.items()},
         "engine": f"aria2 {aria2.version}" if running else "built-in downloader",
         "engine_note": "" if running else aria2.error,
+        "jellyfin": {"configured": bool(config["jellyfin_key"]), "url": config["jellyfin_url"],
+                     "at": jellyfin_status["at"], "error": jellyfin_status["error"]},
     }
 
 
@@ -1121,6 +1196,17 @@ def update_settings(body):
                 result[provider] = PROVIDERS[provider].check(key)
             config[field] = key
             list_cache.pop(provider, None)
+        if "jellyfin_url" in body or "jellyfin_key" in body or body.get("jellyfin_forget"):
+            url = str(body.get("jellyfin_url") or config["jellyfin_url"]).strip().rstrip("/")
+            if not re.match(r"https?://[^/\s]+", url):
+                raise ApiError("The Jellyfin address must start with http:// or https://")
+            key = str(body.get("jellyfin_key") or "").strip() or config["jellyfin_key"]
+            if body.get("jellyfin_forget"):
+                key = ""
+            if key and (key != config["jellyfin_key"] or url != config["jellyfin_url"]):
+                result["jellyfin"] = jellyfin_check(url, key)
+            config["jellyfin_url"], config["jellyfin_key"] = url, key
+            jellyfin_status.update(at=0, error="")
         if "concurrency" in body:
             config["concurrency"] = max(1, min(6, int(body["concurrency"])))
         if "connections" in body:
