@@ -5,6 +5,10 @@ private by default" in README.md. The repository is normally private and must
 be made public by Thomas before Umbrel can install from it; remind him to set it
 back to private after a successful install.
 
+When adding or updating any app, also check all apps in this store for newer
+stable upstream versions, as described in "Keeping apps up to date" in
+README.md, and offer to bundle those updates into the same pull request.
+
 App updates only copy top-level `docker-compose.yml`, `*.template`, `exports.sh`,
 `torrc` and `umbrel-app.yml` files into an installed app; anything else (like a
 subfolder of code) only arrives on a fresh install. `*.template` files are run
