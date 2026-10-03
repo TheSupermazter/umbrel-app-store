@@ -7,10 +7,10 @@
 	auto_https disable_redirects
 }
 
-# Jellyfin for friends. The router forwards TCP 443 to this Umbrel's port
-# 40443, which is Caddy's 443. The certificate comes from Let's Encrypt over
+# Shared by every public site. The router forwards TCP 443 to this Umbrel's
+# port 40443, which is Caddy's 443. Certificates come from Let's Encrypt over
 # that same port (TLS-ALPN challenge), so port 80 stays closed.
-stream.thomasnorden.nl {
+(public) {
 	tls {
 		issuer acme {
 			disable_http_challenge
@@ -22,10 +22,21 @@ stream.thomasnorden.nl {
 		Referrer-Policy "no-referrer"
 		-Server
 	}
+}
+
+# Jellyfin for friends.
+stream.thomasnorden.nl {
+	import public
 	reverse_proxy jellyfin_server_1:8096
+}
+
+# File Share (File Browser): friends download from their own folder.
+download.thomasnorden.nl {
+	import public
+	reverse_proxy thomas-file-share_server_1:80
 }
 
 # Status page behind the Umbrel login (the app's tile on the dashboard).
 :8080 {
-	respond "Caddy is running. https://stream.thomasnorden.nl goes to Jellyfin." 200
+	respond "Caddy is running. https://stream.thomasnorden.nl goes to Jellyfin, https://download.thomasnorden.nl to File Share." 200
 }
