@@ -5,12 +5,13 @@ storage:
   dataRoot: data
 category: networking
 name: Caddy
-version: "2.11.6"
-tagline: Publishes Jellyfin at https://stream.thomasnorden.nl
+version: "2.11.6-patch.1"
+tagline: Publishes Jellyfin and File Share at thomasnorden.nl
 icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/caddy.png
 description: >-
   Caddy is a small web server and reverse proxy with automatic HTTPS. Here it
-  publishes Jellyfin at https://stream.thomasnorden.nl and nothing else.
+  publishes Jellyfin at https://stream.thomasnorden.nl and File Share at
+  https://files.thomasnorden.nl, and nothing else.
 
 
   The router forwards public TCP port 443 to port 40443 on this Umbrel. Caddy
@@ -21,7 +22,7 @@ description: >-
   The configuration is Caddyfile.template in this app's folder in the app
   store. This page only shows that Caddy is running.
 releaseNotes: >-
-  First version: stream.thomasnorden.nl to Jellyfin.
+  Adds files.thomasnorden.nl for the File Share app.
 developer: Caddy contributors
 website: https://caddyserver.com
 submitter: Thomas Norden

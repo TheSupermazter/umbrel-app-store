@@ -36,6 +36,7 @@ or updated.
 |---|---|---|
 | Caddy (`thomas-caddy`) | [caddyserver/caddy releases](https://github.com/caddyserver/caddy/releases), image `caddy:<version>-alpine` on Docker Hub | image tag and digest in `docker-compose.yml`, `version` in `umbrel-app.yml` |
 | Matter Server (`thomas-matter-server`) | [matter-js/matterjs-server releases](https://github.com/matter-js/matterjs-server/releases), image `ghcr.io/matter-js/matterjs-server:<version>` | image tag and digest in `docker-compose.yml`, `version` in `umbrel-app.yml`. Read the release notes first: never downgrade, the store format only moves forward |
+| File Share (`thomas-file-share`) | [filebrowser/filebrowser releases](https://github.com/filebrowser/filebrowser/releases), image `filebrowser/filebrowser:v<version>` | image tag and digest in `docker-compose.yml`, `version` in `umbrel-app.yml` |
 | Debrid Fetch (`thomas-debrid-fetch`) | Our own code. Its pins: `python:3.13.x-alpine` on Docker Hub, and the aria2 build from [abcfy2/aria2-static-build](https://github.com/abcfy2/aria2-static-build/releases) | image tag and digest in `docker-compose.yml`; aria2 URLs and SHA-256 in `server.py.template`; bump `version` in `umbrel-app.yml` |
 
 Pin images as `name:<version>@sha256:<index digest>`: the multi-arch index digest
@@ -47,14 +48,16 @@ repository public, presses Update for each app in Umbrel, and sets it private ag
 ### Caddy (`thomas-caddy`)
 
 [Caddy](https://caddyserver.com) 2.11.6 as a reverse proxy that publishes
-Jellyfin at `https://stream.thomasnorden.nl`, and nothing else.
+Jellyfin at `https://stream.thomasnorden.nl` and File Share at
+`https://files.thomasnorden.nl`, and nothing else.
 
 - **Ports:** host port `40443` is Caddy's HTTPS port; the router forwards public
   TCP 443 to `192.168.1.15:40443`. Port 80 is not used.
 - **Certificate:** Let's Encrypt over port 443 (TLS-ALPN challenge); stored in
   the app's data folder. No API tokens.
-- **DNS:** `stream.thomasnorden.nl` is a DNS-only (grey cloud) CNAME at
-  Cloudflare to `vpn.thomasnorden.nl`, which the router keeps updated.
+- **DNS:** `stream` and `files` are DNS-only (grey cloud) CNAMEs at Cloudflare
+  to `vpn.thomasnorden.nl`, which the router keeps updated. A new site needs
+  such a record plus a block in the Caddyfile that does `import public`.
 - **Configuration:** `Caddyfile.template`, rendered by Umbrel to `Caddyfile`
   (no `$` allowed, see Debrid Fetch). Change it, bump `version` and update the
   app. Requests for names not in the file are refused.
@@ -79,6 +82,22 @@ Python one.
 - **Migration from Portainer:** `~/matter-migrate.sh` on the Umbrel (`check`,
   then `run`, with sudo) stops the old container, backs it up to the home
   folder, copies and verifies the data and creates `.ready`.
+
+### File Share (`thomas-file-share`)
+
+[File Browser](https://filebrowser.org) 2.63.23 as a download portal at
+`https://files.thomasnorden.nl` (through Caddy), for any kind of file.
+
+- **Read-only:** the shared folder (folder access, e.g. `External/PS4HDD/Nordflix`)
+  is mounted read-only at `/srv`, so nothing can be changed or deleted through
+  the app, whatever an account's permissions say.
+- **Accounts:** first start creates the database with download-only defaults for
+  new users and an `admin` account with the password Umbrel shows on the app
+  page (only on first start; change it in the app afterwards). Add friends under
+  Settings, User Management, with Scope set to their folder (e.g. `/Maud`).
+  Sign-up is off.
+- **Login:** its own, not the Umbrel login, because friends reach it from the
+  internet. The dashboard tile (port 8792) opens the same login.
 
 ### Debrid Fetch (`thomas-debrid-fetch`)
 

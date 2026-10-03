@@ -1,0 +1,45 @@
+manifestVersion: 1.1
+id: thomas-file-share
+# App data only holds File Browser's database (accounts and settings).
+storage:
+  dataRoot: data
+folderAccess:
+  - id: shared
+    name: Shared folder
+    note: Folder that friends can download from, e.g. External/PS4HDD/Nordflix. Mounted read-only; each account is limited to its own subfolder.
+    mounts:
+      - service: server
+        targetPath: /srv
+        readOnly: true
+category: files
+name: File Share
+version: "2.63.23"
+tagline: Let friends download files from their own folder
+icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/filebrowser.png
+description: >-
+  File Browser, set up as a download portal: friends log in at
+  https://files.thomasnorden.nl and see only their own folder, from which they
+  can download single files or whole folders as a zip. Any file type works.
+
+
+  The shared folder is mounted read-only, and new accounts are download-only by
+  default, so nothing can be changed or deleted through this app.
+
+
+  Log in as admin with the password shown on this page, then add accounts under
+  Settings, User Management: give each one a strong password and set Scope to
+  their folder, for example /Maud.
+releaseNotes: >-
+  First version: File Browser 2.63.23 as a read-only download portal.
+developer: File Browser contributors
+website: https://filebrowser.org
+submitter: Thomas Norden
+submission: https://github.com/TheSupermazter/umbrel-app-store
+repo: https://github.com/filebrowser/filebrowser
+support: https://github.com/filebrowser/filebrowser/issues
+gallery: []
+dependencies: []
+port: 8792
+path: ""
+defaultUsername: "admin"
+deterministicPassword: true
