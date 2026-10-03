@@ -49,13 +49,13 @@ repository public, presses Update for each app in Umbrel, and sets it private ag
 
 [Caddy](https://caddyserver.com) 2.11.6 as a reverse proxy that publishes
 Jellyfin at `https://stream.thomasnorden.nl` and File Share at
-`https://files.thomasnorden.nl`, and nothing else.
+`https://download.thomasnorden.nl`, and nothing else.
 
 - **Ports:** host port `40443` is Caddy's HTTPS port; the router forwards public
   TCP 443 to `192.168.1.15:40443`. Port 80 is not used.
 - **Certificate:** Let's Encrypt over port 443 (TLS-ALPN challenge); stored in
   the app's data folder. No API tokens.
-- **DNS:** `stream` and `files` are DNS-only (grey cloud) CNAMEs at Cloudflare
+- **DNS:** `stream` and `download` are DNS-only (grey cloud) CNAMEs at Cloudflare
   to `vpn.thomasnorden.nl`, which the router keeps updated. A new site needs
   such a record plus a block in the Caddyfile that does `import public`.
 - **Configuration:** `Caddyfile.template`, rendered by Umbrel to `Caddyfile`
@@ -86,7 +86,7 @@ Python one.
 ### File Share (`thomas-file-share`)
 
 [File Browser](https://filebrowser.org) 2.63.23 as a download portal at
-`https://files.thomasnorden.nl` (through Caddy), for any kind of file.
+`https://download.thomasnorden.nl` (through Caddy), for any kind of file.
 
 - **Read-only:** the shared folder (folder access, e.g. `External/PS4HDD/Nordflix`)
   is mounted read-only at `/srv`, so nothing can be changed or deleted through

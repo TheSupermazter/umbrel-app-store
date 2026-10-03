@@ -31,12 +31,12 @@ stream.thomasnorden.nl {
 }
 
 # File Share (File Browser): friends download from their own folder.
-files.thomasnorden.nl {
+download.thomasnorden.nl {
 	import public
 	reverse_proxy thomas-file-share_server_1:80
 }
 
 # Status page behind the Umbrel login (the app's tile on the dashboard).
 :8080 {
-	respond "Caddy is running. https://stream.thomasnorden.nl goes to Jellyfin, https://files.thomasnorden.nl to File Share." 200
+	respond "Caddy is running. https://stream.thomasnorden.nl goes to Jellyfin, https://download.thomasnorden.nl to File Share." 200
 }

@@ -18,7 +18,7 @@ tagline: Let friends download files from their own folder
 icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/filebrowser.png
 description: >-
   File Browser, set up as a download portal: friends log in at
-  https://files.thomasnorden.nl and see only their own folder, from which they
+  https://download.thomasnorden.nl and see only their own folder, from which they
   can download single files or whole folders as a zip. Any file type works.
 
 
