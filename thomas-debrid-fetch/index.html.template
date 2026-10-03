@@ -143,8 +143,12 @@
     #sort { order: 2; max-width: 38%; }
     #refresh { order: 2; }
 
-    main { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; }
+    html, body { overflow-x: clip; }
+    main { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
+    section, header, footer, .bar { min-width: 0; }
     #library { border-right: 0; }
+    .crumbs { min-width: 0; }
+    .crumbs button { overflow-wrap: anywhere; text-align: left; }
     .bar { padding: 8px 12px; }
     .row { padding: 10px 12px; align-items: flex-start; }
     .row input[type=checkbox] { margin-top: 1px; }
@@ -236,7 +240,7 @@
       <span class="chev" aria-hidden="true">▴</span>
       <span id="queueSummary" class="grow"></span>
       <button class="link" id="cancelAll">Cancel all</button>
-      <button class="link" id="clearDone">Clear finished</button>
+      <button class="link" id="clearDone"><span class="long">Clear finished</span><span class="short">Clear</span></button>
     </div>
     <div class="scroll" id="jobs"></div>
   </section>
