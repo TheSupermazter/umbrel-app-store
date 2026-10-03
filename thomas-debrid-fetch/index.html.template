@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Debrid Fetch</title>
 <style>
   :root {
@@ -19,20 +19,25 @@
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; }
+  html { -webkit-text-size-adjust: 100%; }
   body { margin: 0; background: var(--bg); color: var(--text);
-    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; display: flex; flex-direction: column; }
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; display: flex; flex-direction: column;
+    height: 100dvh; }
   [hidden] { display: none !important; }
   button, input, select { font: inherit; color: inherit; }
   button { cursor: pointer; border: 1px solid var(--line); background: var(--panel); border-radius: 7px; padding: 6px 12px; }
-  button:hover:not(:disabled) { background: var(--hover); }
   button:disabled { opacity: .5; cursor: default; }
   button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
-  button.primary:hover:not(:disabled) { background: var(--accent); filter: brightness(1.08); }
   button.danger { color: var(--bad); }
   button.link { border: 0; background: none; padding: 2px 6px; color: var(--accent); }
   input[type=text], input[type=password], input[type=search], select {
     border: 1px solid var(--line); background: var(--panel); border-radius: 7px; padding: 6px 10px; min-width: 0; }
   input[type=checkbox] { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); flex: none; }
+  @media (hover: hover) {
+    button:hover:not(:disabled), .row:hover { background: var(--hover); }
+    button.primary:hover:not(:disabled) { background: var(--accent); filter: brightness(1.08); }
+    button.link:hover:not(:disabled) { background: none; text-decoration: underline; }
+  }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
   header { display: flex; gap: 10px; align-items: center; padding: 10px 16px; background: var(--panel);
@@ -43,6 +48,7 @@
   .tabs button[aria-selected=true] { background: var(--accent); color: var(--accent-text); font-weight: 600; }
   header input[type=search] { flex: 1 1 160px; }
   .space { color: var(--muted); font-size: 12.5px; white-space: nowrap; }
+  .short, .chev { display: none; }
   .badge { display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 4px; border-radius: 99px; font-size: 11.5px;
     font-weight: 600; background: var(--warn); color: var(--panel); text-align: center; }
 
@@ -58,9 +64,10 @@
 
   .item { border-bottom: 1px solid var(--line); background: var(--panel); }
   .row { display: flex; align-items: center; gap: 10px; padding: 8px 16px; }
-  .row:hover { background: var(--hover); }
   .row .name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
   .row .name.click { cursor: pointer; }
+  /* Name and details sit in one line on wide screens and stack on phones. */
+  .info, .details { display: contents; }
   .row .meta { color: var(--muted); font-size: 12.5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
   .twisty { border: 0; background: none; padding: 0; width: 18px; color: var(--muted); flex: none; }
   .tag { font-size: 11px; padding: 1px 6px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
@@ -116,6 +123,63 @@
   #toast { position: fixed; left: 50%; bottom: 76px; transform: translateX(-50%); background: var(--text); color: var(--bg);
     padding: 8px 14px; border-radius: 8px; font-size: 13px; opacity: 0; pointer-events: none; transition: opacity .2s; max-width: 90vw; z-index: 10; }
   #toast.show { opacity: 1; }
+
+  /* Phones: bigger touch targets, stacked rows, and the download list as a sheet that opens from the bottom. */
+  @media (max-width: 640px) {
+    body { font-size: 15px; }
+    input[type=text], input[type=password], input[type=search], select { font-size: 16px; padding: 8px 10px; }
+    button { padding: 8px 12px; }
+    button.link { padding: 6px 8px; }
+    input[type=checkbox] { width: 20px; height: 20px; }
+    .long { display: none; }
+    .short { display: inline; }
+
+    header { padding: 8px 12px; gap: 8px; }
+    header h1 { margin: 0; }
+    .space { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    .tabs { order: 1; width: 100%; }
+    .tabs button { flex: 1; padding: 8px 4px; }
+    header input[type=search] { order: 2; flex: 1 1 0; }
+    #sort { order: 2; max-width: 38%; }
+    #refresh { order: 2; }
+
+    main { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; }
+    #library { border-right: 0; }
+    .bar { padding: 8px 12px; }
+    .row { padding: 10px 12px; align-items: flex-start; }
+    .row input[type=checkbox] { margin-top: 1px; }
+    .twisty { width: 24px; font-size: 16px; line-height: 22px; }
+    .info { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+    .details { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 10px; }
+    .details:empty { display: none; }
+    .files .row { padding: 8px 12px 8px 46px; }
+
+    footer { padding: 10px 12px; gap: 8px 10px; }
+    footer .sel { flex: 1; }
+    footer .dest { order: 1; flex-basis: 100%; }
+    footer .dest select { flex: 1; }
+    #download { padding: 9px 20px; }
+    #localFooter .sel { flex-basis: 100%; }
+    #localFooter button { flex: 1; }
+
+    #queue { border-top: 1px solid var(--line); background: var(--panel); padding-bottom: env(safe-area-inset-bottom); }
+    #queue .bar { cursor: pointer; border-bottom: 0; min-height: 46px; }
+    #queueSummary { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .chev { display: inline; color: var(--muted); transition: transform .2s; }
+    #queue.open .chev { transform: rotate(180deg); }
+    #queue:not(.open) .scroll { display: none; }
+    #queue.open .scroll { flex: none; height: 55dvh; border-top: 1px solid var(--line); }
+    .job { padding: 10px 12px; }
+
+    dialog { width: calc(100vw - 24px); max-height: calc(100dvh - 24px); }
+    dialog.wide { width: calc(100vw - 24px); }
+    dialog form, dialog .body { padding: 16px; }
+    .two { grid-template-columns: 1fr; }
+    dialog .actions { flex-wrap: wrap; }
+    .list { max-height: 50dvh; }
+    .folderlist button { padding: 11px 12px; }
+    #toast { bottom: calc(130px + env(safe-area-inset-bottom)); }
+  }
 </style>
 </head>
 <body>
@@ -134,8 +198,8 @@
   </select>
   <button id="refresh">Refresh</button>
   <span class="space" id="space"></span>
-  <button id="openOrphans" title="Files on your drive that were removed from your debrid account">Removed from debrid<span class="badge" id="orphanCount" hidden></span></button>
-  <button id="openSettings">Settings</button>
+  <button id="openOrphans" title="Files on your drive that were removed from your debrid account"><span class="long">Removed from debrid</span><span class="short">Removed</span><span class="badge" id="orphanCount" hidden></span></button>
+  <button id="openSettings" aria-label="Settings"><span class="long">Settings</span><span class="short" aria-hidden="true">⚙</span></button>
 </header>
 
 <main>
@@ -169,6 +233,7 @@
   <section id="queue">
     <div class="bar">
       <h2>Downloads</h2>
+      <span class="chev" aria-hidden="true">▴</span>
       <span id="queueSummary" class="grow"></span>
       <button class="link" id="cancelAll">Cancel all</button>
       <button class="link" id="clearDone">Clear finished</button>
@@ -290,6 +355,8 @@ function el(tag, props = {}, ...children) {
   node.append(...children.filter(c => c != null));
   return node;
 }
+// Name on top, tags and sizes under it on phones (both are display: contents on wide screens).
+const info = (name, ...details) => el('div', { className: 'info' }, name, el('div', { className: 'details' }, ...details));
 const serviceTag = p => LABEL[p] ? el('span', { className: 'tag ' + p, textContent: LABEL[p] }) : null;
 let toastTimer;
 function toast(text) {
@@ -447,13 +514,13 @@ function renderItem(item) {
   const name = el('span', { className: 'name click', textContent: item.name });
   twisty.onclick = name.onclick = () => toggleExpand(item);
   const kind = item.kind === 'usenet' ? 'Usenet' : item.kind === 'webdl' ? 'Web' : null;
-  const row = el('div', { className: 'row' }, box, twisty, name,
+  const row = el('div', { className: 'row' }, box, twisty, info(name,
     localMark(item),
     kind && el('span', { className: 'tag', textContent: kind }),
     !item.ready ? el('span', { className: 'tag warn', textContent: item.state || 'not ready' }) : null,
     item.files ? el('span', { className: 'meta', textContent: plural(item.files.length, 'file') }) : null,
     el('span', { className: 'meta', textContent: size(item.size) }),
-    el('span', { className: 'meta', textContent: day(item.added) }));
+    el('span', { className: 'meta', textContent: day(item.added) })));
   const node = el('div', { className: 'item' }, row);
   if (open) {
     const files = el('div', { className: 'files' });
@@ -462,10 +529,10 @@ function renderItem(item) {
       const key = item.id + '|' + f.id;
       const fb = el('input', { type: 'checkbox', checked: selected.has(key), disabled: !item.ready });
       fb.onchange = () => { fb.checked ? selected.set(key, { item, file: f }) : selected.delete(key); render(); };
-      files.append(el('label', { className: 'row' }, fb,
+      files.append(el('label', { className: 'row' }, fb, info(
         el('span', { className: 'name', textContent: f.path }),
         f.local ? el('span', { className: 'check', textContent: '✓', title: 'On your drive: ' + f.local }) : null,
-        el('span', { className: 'meta', textContent: size(f.size) })));
+        el('span', { className: 'meta', textContent: size(f.size) }))));
     }
     node.append(files);
   }
@@ -582,12 +649,12 @@ function renderLocal() {
     box.onchange = () => { box.checked ? localSel.add(e.name) : localSel.delete(e.name); updateLocalSelection(); };
     const name = el('span', { className: 'name' + (e.dir ? ' click' : ''), textContent: (e.dir ? '📁 ' : '') + e.name });
     if (e.dir) name.onclick = () => openLocal(localFull(e.name));
-    return el('div', { className: 'item' }, el('div', { className: 'row' }, box, name,
+    return el('div', { className: 'item' }, el('div', { className: 'row' }, box, info(name,
       e.partial ? el('span', { className: 'tag warn', textContent: 'incomplete' }) : null,
       serviceTag(e.source),
       e.dir ? el('span', { className: 'meta', textContent: plural(e.count, 'file') }) : null,
       el('span', { className: 'meta', textContent: size(e.size) }),
-      el('span', { className: 'meta', textContent: day(e.mtime) })));
+      el('span', { className: 'meta', textContent: day(e.mtime) }))));
   }) : [el('div', { className: 'empty', textContent: localEntries.length ? 'Nothing matches the filter.' : 'This folder is empty.' })]));
   updateLocalSelection();
 }
@@ -662,10 +729,10 @@ function renderOrphans() {
   $('orphanList').replaceChildren(...(orphanFiles.length ? orphanFiles.map(f => {
     const box = el('input', { type: 'checkbox', checked: orphanSel.has(f.path) });
     box.onchange = () => { box.checked ? orphanSel.add(f.path) : orphanSel.delete(f.path); updateOrphanSelection(); };
-    return el('label', { className: 'row' }, box,
+    return el('label', { className: 'row' }, box, info(
       el('span', { className: 'name', textContent: f.path, title: f.item_name ? 'From: ' + f.item_name : '' }),
       serviceTag(f.provider),
-      el('span', { className: 'meta', textContent: size(f.size) }));
+      el('span', { className: 'meta', textContent: size(f.size) })));
   }) : [el('div', { className: 'empty', textContent: 'Nothing here. Every downloaded file is still in your debrid account.' })]));
   $('orphanAllWrap').hidden = !orphanFiles.length;
   updateOrphanSelection();
@@ -779,7 +846,7 @@ async function pollJobs() {
     const order = { downloading: 0, queued: 1, error: 2, cancelled: 3, done: 4 };
     const sorted = jobs.map((j, i) => [j, i]).sort((a, b) => order[a[0].status] - order[b[0].status] || a[1] - b[1]).map(x => x[0]);
     $('jobs').replaceChildren(...(sorted.length ? sorted.map(renderJob)
-      : [el('div', { className: 'empty', textContent: 'Select files on the left and press Download.' })]));
+      : [el('div', { className: 'empty', textContent: 'Select files and press Download.' })]));
     const running = jobs.filter(j => j.status === 'downloading');
     const waiting = jobs.filter(j => j.status === 'queued').length;
     busy = running.length + waiting > 0;
@@ -798,6 +865,10 @@ async function pollJobs() {
   }
   pollTimer = setTimeout(pollJobs, busy ? 1500 : 6000);
 }
+// On phones the download list is a sheet: tapping its bar opens and closes it.
+$('queue').querySelector('.bar').onclick = e => {
+  if (!e.target.closest('button') && matchMedia('(max-width: 640px)').matches) $('queue').classList.toggle('open');
+};
 $('cancelAll').onclick = async () => { await api('/api/jobs/action', { action: 'cancel_all' }).catch(e => toast(e.message)); pollJobs(); };
 $('clearDone').onclick = async () => { await api('/api/jobs/action', { action: 'clear' }).catch(e => toast(e.message)); pollJobs(); };
 
