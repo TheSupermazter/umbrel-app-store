@@ -1,6 +1,6 @@
 manifestVersion: 1.1
 id: thomas-file-share
-# App data only holds File Browser's database (accounts and settings).
+# App data only holds FileBrowser Quantum's database (accounts and settings).
 storage:
   dataRoot: data
 folderAccess:
@@ -13,30 +13,33 @@ folderAccess:
         readOnly: true
 category: files
 name: File Share
-version: "2.63.23"
+version: "1.5.6"
 tagline: Let friends download files from their own folder
-icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/filebrowser.png
+icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/filebrowser-quantum.png
 description: >-
-  File Browser, set up as a download portal: friends log in at
-  https://download.thomasnorden.nl and see only their own folder, from which they
-  can download single files or whole folders as a zip. Any file type works.
+  FileBrowser Quantum, set up as a download portal: friends log in at
+  https://download.thomasnorden.nl and see only their own folder, from which
+  they can download single files or whole folders as a zip. Any file type works.
 
 
-  The shared folder is mounted read-only, and new accounts are download-only by
-  default, so nothing can be changed or deleted through this app.
+  The shared folder is mounted read-only, new accounts are download-only and see
+  nothing until you set their folder, and there are no public share links.
 
 
-  Log in as admin with the password shown on this page, then add accounts under
-  Settings, User Management: give each one a strong password and set Scope to
-  their folder, for example /Maud.
+  Log in as admin with the password shown on this page (it is applied at every
+  start). Add accounts under Settings, User Management: give each one a strong
+  password and set the Nordflix scope to their folder, for example /Maud. To
+  browse everything yourself, set your own admin scope to /.
 releaseNotes: >-
-  First version: File Browser 2.63.23 as a read-only download portal.
-developer: File Browser contributors
-website: https://filebrowser.org
+  Switches from File Browser, which was archived on 1 September 2026 and gets no
+  more security fixes, to the actively maintained FileBrowser Quantum 1.5.6.
+  Accounts from the old app are not carried over.
+developer: Graham Steffaniak
+website: https://filebrowserquantum.com
 submitter: Thomas Norden
 submission: https://github.com/TheSupermazter/umbrel-app-store
-repo: https://github.com/filebrowser/filebrowser
-support: https://github.com/filebrowser/filebrowser/issues
+repo: https://github.com/gtsteffaniak/filebrowser
+support: https://github.com/gtsteffaniak/filebrowser/issues
 gallery: []
 dependencies: []
 port: 8792
