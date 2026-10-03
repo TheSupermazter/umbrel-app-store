@@ -29,14 +29,23 @@ description: >-
   download was removed from your debrid account, so you can delete them too.
 
 
+  Add a Jellyfin API key in Settings and Jellyfin scans its libraries as soon
+  as downloads finish, so new files show up there right away.
+
+
   Open Settings and enter your TorBox API key or Real-Debrid API token. Keys
   are stored only on your Umbrel. On first start the app downloads a static
   aria2 build from GitHub and checks it against a pinned checksum.
 releaseNotes: >-
+  Jellyfin: add a Jellyfin API key in Settings and Debrid Fetch asks Jellyfin
+  to scan its libraries when downloads finish, or when you delete, rename or
+  move files. New files and new folders then show up in Jellyfin right away.
+
+
   Works better on phones: bigger buttons and checkboxes, file names on their
-  own line with size and date under them, and the download list as a bar at
-  the bottom that you tap to open. Typing in a field no longer zooms the page
-  on iPhone.
+  own line with size and date under them, no sideways scrolling, and the
+  download list as a bar at the bottom that you tap to open. Typing in a field
+  no longer zooms the page on iPhone.
 developer: Thomas Norden
 website: https://github.com/TheSupermazter/umbrel-app-store
 submitter: Thomas Norden

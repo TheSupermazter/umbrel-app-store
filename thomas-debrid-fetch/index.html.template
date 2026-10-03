@@ -107,8 +107,10 @@
   dialog h2 { margin: 0; font-size: 16px; }
   dialog label.field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
   dialog .hint { color: var(--muted); font-size: 12.5px; }
+  dialog .hint.bad { color: var(--bad); }
   dialog .actions { display: flex; gap: 8px; justify-content: flex-end; align-items: center; margin-top: 4px; }
   dialog .actions .grow { flex: 1; }
+  dialog h3 { margin: 6px 0 0; font-size: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
   dialog .msg { color: var(--bad); font-size: 13px; min-height: 1.2em; }
   .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; font-size: 13px; }
@@ -268,6 +270,20 @@
     <div class="hint" id="engineHint"></div>
     <div class="hint">Keys are stored only on this server and are never shown again. Leave a field empty to keep the saved key.
       TorBox: torbox.app → Settings → API key. Real-Debrid: real-debrid.com/apitoken.</div>
+    <h3>Jellyfin</h3>
+    <div class="hint">When downloads finish, or you delete, rename or move files, Debrid Fetch asks Jellyfin to scan its
+      libraries, so new files show up right away. Make a key in Jellyfin: Dashboard → API Keys → +.</div>
+    <label class="field">Jellyfin address
+      <input type="text" id="jfUrl" autocomplete="off" spellcheck="false" inputmode="url">
+    </label>
+    <label class="field">Jellyfin API key
+      <input type="password" id="jfKey" autocomplete="off" spellcheck="false">
+      <span class="hint" id="jfHint"></span>
+    </label>
+    <div class="inline" id="jfTools">
+      <button type="button" id="jfScan">Scan Jellyfin now</button>
+      <button type="button" class="link danger" id="jfForget">Remove key</button>
+    </div>
     <div class="msg" id="settingsMsg"></div>
     <div class="actions">
       <button type="button" id="closeSettings">Close</button>
@@ -394,6 +410,14 @@ async function loadState() {
   $('connections').value = state.connections;
   $('torboxHint').textContent = state.providers.torbox ? 'A key is saved.' : 'No key saved yet.';
   $('rdHint').textContent = state.providers.realdebrid ? 'A token is saved.' : 'No token saved yet.';
+  const jf = state.jellyfin;
+  if (!$('settings').open) $('jfUrl').value = jf.url;
+  $('jfHint').textContent = !jf.configured ? 'No key saved: Jellyfin is not told about new files.'
+    : jf.error ? 'Key saved, but the last scan failed: ' + jf.error
+    : jf.at ? 'Key saved. Last scan asked at ' + new Date(jf.at * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + '.'
+    : 'A key is saved.';
+  $('jfHint').classList.toggle('bad', !!(jf.configured && jf.error));
+  $('jfTools').hidden = !jf.configured;
   $('engineHint').textContent = ('Downloading with ' + (state.engine)) +
     (state.engine_note ? (' (aria2 not available: ' + (state.engine_note) + ')') : '') + '.';
 }
@@ -879,8 +903,9 @@ $('clearDone').onclick = async () => { await api('/api/jobs/action', { action: '
 // ---------------------------------------------------------------- settings
 
 function openSettings() {
-  $('torboxKey').value = $('rdKey').value = '';
+  $('torboxKey').value = $('rdKey').value = $('jfKey').value = '';
   $('settingsMsg').textContent = '';
+  if (state.jellyfin) $('jfUrl').value = state.jellyfin.url;
   $('settings').showModal();
   loadState().catch(() => {});
 }
@@ -891,6 +916,8 @@ $('settingsForm').onsubmit = async e => {
   const body = { concurrency: Number($('concurrency').value), connections: Number($('connections').value) };
   if ($('torboxKey').value.trim()) body.torbox_key = $('torboxKey').value.trim();
   if ($('rdKey').value.trim()) body.rd_key = $('rdKey').value.trim();
+  body.jellyfin_url = $('jfUrl').value.trim();
+  if ($('jfKey').value.trim()) body.jellyfin_key = $('jfKey').value.trim();
   $('settingsMsg').textContent = '';
   try {
     await api('/api/settings', body);
@@ -900,7 +927,29 @@ $('settingsForm').onsubmit = async e => {
     loadOrphanCount();
     toast('Settings saved');
   } catch (err) {
-    $('settingsMsg').textContent = 'Key not accepted: ' + err.message;
+    $('settingsMsg').textContent = 'Not saved: ' + err.message;
+  }
+};
+$('jfScan').onclick = async () => {
+  $('jfScan').disabled = true;
+  $('settingsMsg').textContent = '';
+  try {
+    await api('/api/jellyfin/scan', {});
+    toast('Jellyfin is scanning its libraries');
+  } catch (err) {
+    $('settingsMsg').textContent = err.message;
+  }
+  $('jfScan').disabled = false;
+  loadState().catch(() => {});
+};
+$('jfForget').onclick = async () => {
+  if (!confirm('Remove the Jellyfin API key? Jellyfin will no longer be told about new files.')) return;
+  try {
+    await api('/api/settings', { jellyfin_forget: true });
+    await loadState();
+    toast('Jellyfin key removed');
+  } catch (err) {
+    $('settingsMsg').textContent = err.message;
   }
 };
 
