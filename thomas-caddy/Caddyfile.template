@@ -1,0 +1,31 @@
+# Caddy configuration for this Umbrel. Umbrel renders this file to Caddyfile on
+# install and update, through envsubst: never use a dollar sign in here.
+{
+	# No admin API; restart the app to apply changes.
+	admin off
+	# Port 80 is not forwarded, so no HTTP listener for redirects.
+	auto_https disable_redirects
+}
+
+# Jellyfin for friends. The router forwards TCP 443 to this Umbrel's port
+# 40443, which is Caddy's 443. The certificate comes from Let's Encrypt over
+# that same port (TLS-ALPN challenge), so port 80 stays closed.
+stream.thomasnorden.nl {
+	tls {
+		issuer acme {
+			disable_http_challenge
+		}
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+	reverse_proxy jellyfin_server_1:8096
+}
+
+# Status page behind the Umbrel login (the app's tile on the dashboard).
+:8080 {
+	respond "Caddy is running. https://stream.thomasnorden.nl goes to Jellyfin." 200
+}

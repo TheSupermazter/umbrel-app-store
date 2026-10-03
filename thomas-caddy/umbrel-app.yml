@@ -1,0 +1,36 @@
+manifestVersion: 1.1
+id: thomas-caddy
+# App data only holds the HTTPS certificates and Caddy's state.
+storage:
+  dataRoot: data
+category: networking
+name: Caddy
+version: "2.11.6"
+tagline: Publishes Jellyfin at https://stream.thomasnorden.nl
+icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/caddy.png
+description: >-
+  Caddy is a small web server and reverse proxy with automatic HTTPS. Here it
+  publishes Jellyfin at https://stream.thomasnorden.nl and nothing else.
+
+
+  The router forwards public TCP port 443 to port 40443 on this Umbrel. Caddy
+  gets its Let's Encrypt certificate over that same port, so port 80 does not
+  need to be open. Requests for any other name are refused.
+
+
+  The configuration is Caddyfile.template in this app's folder in the app
+  store. This page only shows that Caddy is running.
+releaseNotes: >-
+  First version: stream.thomasnorden.nl to Jellyfin.
+developer: Caddy contributors
+website: https://caddyserver.com
+submitter: Thomas Norden
+submission: https://github.com/TheSupermazter/umbrel-app-store
+repo: https://github.com/caddyserver/caddy
+support: https://caddy.community
+gallery: []
+dependencies: []
+port: 8790
+path: ""
+defaultUsername: ""
+defaultPassword: ""

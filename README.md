@@ -25,6 +25,22 @@ or updated.
 
 ## Apps
 
+### Caddy (`thomas-caddy`)
+
+[Caddy](https://caddyserver.com) 2.11.6 as a reverse proxy that publishes
+Jellyfin at `https://stream.thomasnorden.nl`, and nothing else.
+
+- **Ports:** host port `40443` is Caddy's HTTPS port; the router forwards public
+  TCP 443 to `192.168.1.15:40443`. Port 80 is not used.
+- **Certificate:** Let's Encrypt over port 443 (TLS-ALPN challenge); stored in
+  the app's data folder. No API tokens.
+- **DNS:** `stream.thomasnorden.nl` is a DNS-only (grey cloud) CNAME at
+  Cloudflare to `vpn.thomasnorden.nl`, which the router keeps updated.
+- **Configuration:** `Caddyfile.template`, rendered by Umbrel to `Caddyfile`
+  (no `$` allowed, see Debrid Fetch). Change it, bump `version` and update the
+  app. Requests for names not in the file are refused.
+- **Dashboard tile:** only a status page on port 8790, behind the Umbrel login.
+
 ### Debrid Fetch (`thomas-debrid-fetch`)
 
 A small web app (`server.py.template` and `index.html.template`, run by the stock
